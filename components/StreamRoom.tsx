@@ -128,10 +128,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         // Garante que o giftWithId tenha um id obrigatório
         const giftWithId = { ...giftData, id: giftId } as GiftPayload & { id: number };
         
-        // Prioridade baseada no valor do presente
-        const priority = giftData.gift.price || 1;
-        // Duração baseada no tipo de presente (em ms)
-        const duration = giftData.gift.name === 'Diamante VIP' ? 5000 : 3000;
+        // Define uma prioridade fixa, já que só queremos uma notificação por vez
+        const priority = 1;
+        // Define uma duração longa (1 hora) para garantir que não expire sozinha
+        const duration = 60 * 60 * 1000; // 1 hora em milissegundos
         
         // Solicita permissão ao gerenciador de animações
         const { id, canStart } = animationManager.requestAnimation(priority, duration);
@@ -140,29 +140,22 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         const ref = { canStart, checkInterval: null as NodeJS.Timeout | null };
         animationRefs.current[id] = ref;
         
-        if (canStart) {
-            setActiveGiftAnimations(prev => [...prev, giftWithId]);
-        } else {
-            // Se não puder começar agora, agenda para tentar novamente em breve
-            const checkInterval = setInterval(() => {
-                if (ref.canStart) {
-                    clearInterval(checkInterval);
-                    setActiveGiftAnimations(prev => [...prev, giftWithId]);
-                    delete animationRefs.current[id];
-                }
-            }, 100);
-            
-            // Armazena a referência do intervalo
-            if (ref) ref.checkInterval = checkInterval;
-            
-            // Retorna função de limpeza
-            return () => {
-                if (ref.checkInterval) {
-                    clearInterval(ref.checkInterval);
-                }
-                delete animationRefs.current[id];
-            };
+        // Sempre substitui a notificação anterior pela nova
+        setActiveGiftAnimations(prev => [giftWithId]);
+        
+        // Limpa qualquer intervalo anterior para evitar vazamentos de memória
+        if (ref.checkInterval) {
+            clearInterval(ref.checkInterval);
+            ref.checkInterval = null;
         }
+        
+        // Retorna função de limpeza
+        return () => {
+            if (ref.checkInterval) {
+                clearInterval(ref.checkInterval);
+            }
+            delete animationRefs.current[id];
+        };
     }, []);
 
     const isBroadcaster = streamer.hostId === currentUser.id;
@@ -253,6 +246,15 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         swipeStart.current = null;
     };
     
+    const handleGiftAnimationEnd = useCallback((giftId: number) => {
+        setActiveGiftAnimations(prev => {
+            const updated = prev.filter(gift => gift.id !== giftId);
+            // Notifica o gerenciador que a animação terminou
+            animationManager.endAnimation(giftId);
+            return updated;
+        });
+    }, []);
+
     useEffect(() => {
         const isFan = currentUser.fanClub && currentUser.fanClub.streamerId === streamer.hostId;
         const entryType = isFan ? 'fan_entry' : 'entry';
@@ -268,44 +270,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             if (users) {
                 setOnlineUsers(users);
                 updateLiveSession({ viewers: users.length });
-                previousOnlineUsersRef.current = users;
             }
         });
-    }, [streamer.id, streamer.hostId, currentUser, updateLiveSession]);
-
-    const postGiftChatMessage = (payload: GiftPayload) => {
-        const { fromUser, gift, toUser, quantity } = payload;
-        
-        const messageKey = quantity > 1 ? 'streamRoom.sentMultipleGiftsMessage' : 'streamRoom.sentGiftMessage';
-        const messageOptions = { quantity, giftName: gift.name, receiverName: toUser.name };
-
-        const giftMessage: ChatMessageType = {
-            id: Date.now() + Math.random(),
-            type: 'chat',
-            user: fromUser.name,
-            level: fromUser.level,
-            message: (
-                <span className="inline-flex items-center">
-                    {t(messageKey, messageOptions)}
-                    {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block ml-1.5" }) : <span className="ml-1.5">{gift.icon}</span>}
-                </span>
-            ),
-            avatar: fromUser.avatarUrl,
-            activeFrameId: fromUser.activeFrameId,
-            frameExpiration: fromUser.frameExpiration,
-            fanClub: fromUser.fanClub,
-        };
-        setMessages(prev => [...prev, giftMessage]);
-    };
-    
-    const handleGiftAnimationEnd = useCallback((id: number) => {
-        setActiveGiftAnimations(prev => {
-            const updated = prev.filter(gift => gift.id !== id);
-            // Notifica o gerenciador que a animação terminou
-            animationManager.endAnimation(id);
-            return updated;
-        });
-    }, []);
+    }, [currentUser, streamer.hostId, streamer.id, updateLiveSession]);
 
     const handleFullscreenGiftAnimationEnd = () => {
         if (currentFullscreenGift) {
@@ -393,6 +360,32 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             webSocketManager.off('onlineUsersUpdate', handleOnlineUsersUpdate);
         };
     }, [streamer.id, streamer.hostId, updateLiveSession, currentUser, language, t, onOpenFriendRequests, liveSession, refreshStreamRoomData]);
+
+    const postGiftChatMessage = (payload: GiftPayload) => {
+        const { fromUser, gift, toUser, quantity } = payload;
+        
+        const totalValue = (gift.price || 0) * quantity;
+        const giftIcon = gift.component ? 
+            React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block ml-1" }) : 
+            <span className="ml-1">{gift.icon}</span>;
+
+        const giftMessage: ChatMessageType = {
+            id: Date.now() + Math.random(),
+            type: 'chat',
+            user: fromUser.name,
+            level: fromUser.level,
+            message: (
+                <span className="inline-flex items-center">
+                    📦 <span className="font-semibold">{fromUser.name}</span> enviou {giftIcon} para <span className="font-semibold">{toUser.name}</span> — {totalValue} moedas.
+                </span>
+            ),
+            avatar: fromUser.avatarUrl,
+            activeFrameId: fromUser.activeFrameId,
+            frameExpiration: fromUser.frameExpiration,
+            fanClub: fromUser.fanClub,
+        };
+        setMessages(prev => [...prev, giftMessage]);
+    };
 
     const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
         e.stopPropagation();

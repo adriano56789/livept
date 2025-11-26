@@ -31,9 +31,8 @@ const GiftAnimationOverlay: React.FC<GiftAnimationOverlayProps> = ({ giftPayload
     }, [giftPayload.id, onAnimationEnd]);
 
     useEffect(() => {
-        // Reduzindo o tempo de animação para 3 segundos
-        const timer = setTimeout(handleAnimationEnd, 3000);
-        return () => clearTimeout(timer);
+        // Removido o timeout para a notificação não desaparecer sozinha
+        // A notificação será removida apenas quando uma nova notificação for adicionada
     }, [handleAnimationEnd]);
     
     const { fromUser, toUser, gift, quantity } = giftPayload;
