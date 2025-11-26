@@ -1,0 +1,97 @@
+/* Estilos personalizados */
+:root {
+  --sat: env(safe-area-inset-top);
+  --sar: env(safe-area-inset-right);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #000000;
+  color: white;
+  overflow: hidden;
+  /* Prevent scrolling on body */
+  overscroll-behavior: none;
+  /* Prevent bounce effect */
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  /* Lock body in place */
+  
+  /* Corrigindo avisos de appearance */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+/* Estilo para elementos de formulário */
+button,
+input,
+select,
+textarea,
+[role="button"],
+[type="button"],
+[type="reset"],
+[type="submit"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background: none;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  line-height: normal;
+  cursor: pointer;
+}
+
+/* Estilo específico para campos de busca */
+[type="search"] {
+  outline-offset: -2px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-color: transparent;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: white;
+}
+
+/* Estilo para remover setas em inputs do tipo number */
+[type="number"]::-webkit-inner-spin-button,
+[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}

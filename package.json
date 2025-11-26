@@ -1,0 +1,49 @@
+{
+  "name": "livego-stream-viewer",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "analyze": "vite build --mode production",
+    "pwa-dev": "vite -c vite.pwa.config.ts",
+    "pwa-build": "vite build -c vite.pwa.config.ts",
+    "pwa-preview": "vite preview -c vite.pwa.config.ts",
+    "build:pwa": "vite build -c vite.pwa.config.ts"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/ios": "^7.4.4",
+    "@expo/vector-icons": "^15.0.3",
+    "@google/generative-ai": "^0.24.1",
+    "@types/lodash.debounce": "^4.0.9",
+    "i18next": "^25.6.1",
+    "lodash.debounce": "^4.0.8",
+    "lucide-react": "^0.554.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-i18next": "^16.2.4",
+    "react-icons": "^5.5.0",
+    "styled-components": "^6.1.19"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss7-compat": "^2.2.17",
+    "@types/node": "^22.19.0",
+    "@types/react-native": "^0.72.8",
+    "@vitejs/plugin-basic-ssl": "^2.1.0",
+    "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^9.8.8",
+    "postcss": "^7.0.39",
+    "rollup-plugin-visualizer": "^6.0.5",
+    "tailwindcss": "^4.1.17",
+    "terser": "^5.44.1",
+    "typescript": "~5.8.2",
+    "vite": "^7.2.2",
+    "vite-plugin-checker": "^0.11.0",
+    "vite-plugin-pwa": "^1.1.0"
+  }
+}
