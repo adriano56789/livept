@@ -1428,6 +1428,62 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
         }
     }
     
+    // VIP Subscription
+    if (entity === 'vip' && method === 'POST' && id === 'subscribe' && pathParts[3]) {
+        const userId = pathParts[3];
+        console.log(`[API] Processing VIP subscription for user ${userId}`);
+        const user = db.users.get(userId);
+        
+        if (!user) {
+            return { status: 404, error: 'User not found' };
+        }
+
+        // Check if user already has VIP
+        if (user.isVIP) {
+            return { status: 400, error: 'User is already a VIP' };
+        }
+
+        // Update user to VIP
+        user.isVIP = true;
+        user.vipSince = new Date().toISOString();
+        
+        // Add some VIP benefits
+        user.diamonds = (user.diamonds || 0) + 1000; // Give some diamonds as a welcome gift
+        
+        // Add VIP badge or other perks
+        if (!user.badges) user.badges = [];
+        if (!user.badges.includes('vip')) {
+            user.badges.push('vip');
+        }
+        
+        // Create a purchase record
+        const purchase: PurchaseRecord = {
+            id: `vip_sub_${Date.now()}`,
+            userId: user.id,
+            type: 'vip_subscription',
+            description: 'Assinatura VIP',
+            amountBRL: 0, // This would be set based on VIP package in a real implementation
+            amountCoins: 0,
+            status: 'Concluído',
+            timestamp: new Date().toISOString(),
+        };
+        
+        db.purchases.unshift(purchase);
+        db.users.set(userId, user);
+        saveDb();
+        
+        // Notify via WebSocket if needed
+        webSocketServerInstance?.notifyUserUpdate(userId);
+        
+        return {
+            status: 200,
+            data: {
+                success: true,
+                user: user
+            }
+        };
+    }
+
     if (entity === 'friends' && id === 'invite' && method === 'POST') {
         const { streamId, inviteeId } = body;
         const inviter = db.users.get(CURRENT_USER_ID);

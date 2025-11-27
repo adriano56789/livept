@@ -232,6 +232,19 @@ class SimulatedWebSocketServer {
         });
     }
 
+    public notifyUserUpdate(userId: string) {
+        const user = database.db.users.get(userId);
+        if (user) {
+            console.log(`[WS Server] Notifying user ${user.name} (${userId}) of data update.`);
+            this.sendToUser(userId, {
+                type: 'userDataUpdated',
+                payload: { user }
+            });
+        } else {
+            console.warn(`[WS Server] Could not notify user ${userId}: user not found.`);
+        }
+    }
+
     public broadcastTransactionUpdate(record: PurchaseRecord) {
         console.log(`[WS Server] Broadcasting transaction update for record ${record.id} to user ${record.userId}.`);
         const payload = { record };
@@ -445,12 +458,38 @@ class SimulatedWebSocketServer {
 
         console.log(`[WS Server] Broadcasting gift in room ${roomId}:`, giftPayload);
 
+        // Create a chat message for the gift
+        const giftMessage = {
+            id: Date.now(),
+            type: 'gift',
+            user: fromUser.name,
+            level: fromUser.level,
+            avatar: fromUser.avatarUrl,
+            gift: {
+                name: gift.name,
+                icon: gift.icon,
+                quantity: quantity
+            },
+            message: `${fromUser.name} enviou ${quantity}x ${gift.name}`,  // Fallback message
+            roomId
+        };
+
+        // Broadcast the gift animation
         room.forEach(userIdInRoom => {
             const userSocket = this.connections.get(userIdInRoom);
-            userSocket?.onMessage({
-                type: 'newStreamGift',
-                payload: giftPayload
-            });
+            if (userSocket) {
+                // Send the gift animation
+                userSocket.onMessage({
+                    type: 'newStreamGift',
+                    payload: giftPayload
+                });
+                
+                // Also send as a chat message
+                userSocket.onMessage({
+                    type: 'newStreamMessage',
+                    payload: giftMessage
+                });
+            }
         });
     }
 

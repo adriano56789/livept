@@ -1,5 +1,6 @@
 import React from 'react';
-import { HomeIcon, VideoIcon, MessageIcon, PlayIcon } from './icons';
+import { HomeIcon, VideoIcon, PlayIcon, MessageIcon } from './icons';
+import { RiChat3Line } from 'react-icons/ri';
 import { useTranslation } from '../i18n';
 import { User } from '../types';
 import { avatarFrames, getRemainingDays, getFrameGlowClass } from '../services/database';
@@ -38,7 +39,7 @@ const FooterNav: React.FC<FooterNavProps> = ({ currentUser, onOpenGoLive, active
           <PlayIcon className="w-8 h-8 text-white" />
         </button>
         <button onClick={() => onNavigate('messages')} className={`flex flex-col items-center w-1/5 pt-1 relative ${activeTab === 'messages' ? 'text-white' : 'hover:text-white'}`}>
-          <MessageIcon className="w-6 h-6" />
+          <RiChat3Line className="w-6 h-6" />
           <span className="absolute top-0 right-1/2 translate-x-3.5 w-2 h-2 bg-red-500 rounded-full border-2 border-[#1C1C1E]"></span>
           <span className="text-sm mt-1">{t('footer.message')}</span>
         </button>

@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { GlobeIcon, SearchIcon } from './icons';
+import { GlobeIcon } from './icons';
+import { RiSearch2Line } from 'react-icons/ri';
 
 interface HeaderProps {
     onOpenReminderModal: () => void;
@@ -29,7 +30,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenReminderModal, onOpenRegionModal,
             onClick={onOpenSearch} 
             className="w-9 h-9 bg-gray-700 rounded-md flex items-center justify-center text-white hover:bg-gray-600 transition-colors"
         >
-          <SearchIcon className="w-5 h-5" />
+          <RiSearch2Line className="w-5 h-5" />
         </button>
       </div>
     </header>

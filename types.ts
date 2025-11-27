@@ -98,13 +98,18 @@ export interface User {
   receptores: number;
   enviados: number;
   topFansAvatars?: string[];
+  isVIP?: boolean;
+  vipSince?: string;
+  vipSubscriptionDate?: string;
+  vipExpirationDate?: string;
+  badges?: string[];
+  diamonds: number;
+  earnings: number;
+  earnings_withdrawn: number;
   isLive?: boolean;
   isFollowed?: boolean;
   isOnline?: boolean;
   lastSeen?: string;
-  diamonds: number;
-  earnings: number;
-  earnings_withdrawn: number;
   withdrawal_method?: {
     method: string;
     details: any;
@@ -117,9 +122,6 @@ export interface User {
   emotional_status?: string;
   tags?: string;
   profession?: string;
-  isVIP?: boolean;
-  vipSubscriptionDate?: string;
-  vipExpirationDate?: string;
   isAvatarProtected?: boolean;
   activeFrameId?: string | null;
   ownedFrames: { frameId: string; expirationDate: string; }[];
@@ -257,7 +259,7 @@ export interface BeautySettings {
 export interface PurchaseRecord {
   id: string;
   userId: string;
-  type: 'purchase_diamonds' | 'withdraw_earnings' | 'withdraw_platform_earnings' | 'purchase_frame';
+  type: 'purchase_diamonds' | 'withdraw_earnings' | 'withdraw_platform_earnings' | 'purchase_frame' | 'vip_subscription';
   description: string;
   amountBRL: number;
   amountCoins: number;
