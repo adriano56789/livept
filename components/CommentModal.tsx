@@ -13,13 +13,23 @@ interface CommentModalProps {
 
 const CommentItem: React.FC<{ comment: Comment }> = ({ comment }) => (
   <div className="flex items-start space-x-3">
-    <img src={comment.user.avatarUrl} alt={comment.user.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-    <div className="flex-1">
-      <p className="text-xs text-gray-400">{comment.user.name}</p>
-      <div className="bg-gray-800/50 rounded-lg p-2 mt-1">
-        <p className="text-sm text-white">{comment.text}</p>
+    <div className="flex-shrink-0">
+      <img 
+        src={comment.user.avatarUrl} 
+        alt={comment.user.name} 
+        className="w-10 h-10 rounded-full object-cover border-2 border-gray-700"
+      />
+    </div>
+    <div className="flex-1 min-w-0">
+      <div className="flex items-baseline">
+        <p className="text-sm font-medium text-white">{comment.user.name}</p>
+        <span className="ml-2 text-xs text-gray-400">
+          {new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
       </div>
-      <p className="text-xs text-gray-500 mt-1">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+      <div className="mt-1 bg-gray-800/50 rounded-lg px-3 py-2">
+        <p className="text-sm text-white break-words">{comment.text}</p>
+      </div>
     </div>
   </div>
 );
@@ -64,9 +74,9 @@ const CommentModal: React.FC<CommentModalProps> = ({ photo, currentUser, onClose
   };
 
   return (
-    <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-white/80" onClick={onClose}>
       <div
-        className="bg-[#1C1C1E] w-full max-w-md h-[60%] rounded-t-2xl flex flex-col"
+        className="bg-[#1C1C1E] w-full max-w-md h-[70%] rounded-t-2xl flex flex-col shadow-lg"
         onClick={e => e.stopPropagation()}
       >
         <header className="flex-shrink-0 p-4 text-center relative border-b border-gray-700">
@@ -79,7 +89,12 @@ const CommentModal: React.FC<CommentModalProps> = ({ photo, currentUser, onClose
           {isLoading ? (
             <div className="flex justify-center items-center h-full"><LoadingSpinner /></div>
           ) : comments.length > 0 ? (
-            comments.map(comment => <CommentItem key={comment.id} comment={comment} />)
+            comments.map((comment, index) => (
+              <CommentItem 
+                key={`${comment.id || 'comment'}_${index}`} 
+                comment={comment} 
+              />
+            ))
           ) : (
             <div className="flex justify-center items-center h-full text-gray-500">
               <p>Nenhum comentário ainda. Seja o primeiro!</p>
@@ -100,9 +115,13 @@ const CommentModal: React.FC<CommentModalProps> = ({ photo, currentUser, onClose
               <button
                 onClick={handlePostComment}
                 disabled={isPosting || !newComment.trim()}
-                className="bg-purple-600 w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-purple-700 transition-colors disabled:bg-gray-600"
+                className="bg-purple-600 w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-purple-700 transition-colors disabled:bg-gray-400"
               >
-                {isPosting ? <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div> : <SendIcon className="w-5 h-5 text-white" />}
+                {isPosting ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                ) : (
+                  <SendIcon className="w-5 h-5 text-white" />
+                )}
               </button>
             </div>
           </div>
