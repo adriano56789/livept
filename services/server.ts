@@ -1002,7 +1002,11 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 const receiver = db.users.get(stream.hostId);
                 if (!receiver) return { status: 404, error: 'Receiver not found.' };
                 
-                const totalCost = (gift.price || 0) * amount;
+                // Garantir que o preço e a quantidade sejam números inteiros
+                const giftPrice = Math.floor(gift.price || 0);
+                const giftAmount = Math.floor(amount || 1);
+                const totalCost = giftPrice * giftAmount;
+                
                 if (sender.diamonds < totalCost) return { status: 400, data: { success: false, error: 'Not enough diamonds' } };
     
                 // --- Start of transaction-like updates ---
@@ -1065,31 +1069,56 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 const session = db.liveSessions.get(streamId);
                 if (session) {
                     if (!session.giftSenders) session.giftSenders = new Map();
-                    const senderData = session.giftSenders.get(fromUserId) || { ...updatedSender, giftsSent: [], sessionContribution: 0 };
+                    
+                    // Obter ou criar dados do remetente
+                    const senderData = session.giftSenders.get(fromUserId) || { 
+                        ...updatedSender, 
+                        giftsSent: [], 
+                        sessionContribution: 0 
+                    };
+                    
+                    // Atualizar a lista de presentes enviados
                     const existingGiftIndexInSession = senderData.giftsSent.findIndex(g => g.name === gift.name);
                     if (existingGiftIndexInSession > -1) {
-                        senderData.giftsSent[existingGiftIndexInSession].quantity += amount;
+                        senderData.giftsSent[existingGiftIndexInSession].quantity += giftAmount;
                     } else {
-                        senderData.giftsSent.push({ name: gift.name, icon: gift.icon, quantity: amount, component: gift.component });
+                        senderData.giftsSent.push({ 
+                            name: gift.name, 
+                            icon: gift.icon, 
+                            quantity: giftAmount,
+                            component: gift.component
+                        });
                     }
-                    senderData.sessionContribution += totalCost;
+                    
+                    // Atualizar a contribuição total (garantindo que seja um número inteiro)
+                    senderData.sessionContribution = Math.floor(senderData.sessionContribution + totalCost);
+                    
+                    // Atualizar o mapa de remetentes
                     session.giftSenders.set(fromUserId, senderData);
+                    
+                    // Atualizar a sessão no banco de dados
+                    db.liveSessions.set(streamId, session);
+                    
+                    // Salvar as alterações no banco de dados
+                    saveDb();
+                    
+                    // Log para depuração
+                    console.log(`[GIFT] ${sender.name} enviou ${giftAmount}x ${gift.name} (${totalCost} pontos). Total: ${senderData.sessionContribution}`);
                 }
-    
+                
                 // 6. Persist all changes
                 db.users.set(fromUserId, updatedSender);
                 db.users.set(stream.hostId, updatedReceiver);
-                saveDb();
-    
+                
                 // 7. Broadcast updates
                 webSocketServerInstance.broadcastUserUpdate(updatedSender);
                 webSocketServerInstance.broadcastUserUpdate(updatedReceiver);
                 webSocketServerInstance.broadcastRoomUpdate(streamId);
-    
+                
                 return { status: 200, data: { success: true, updatedSender, updatedReceiver } };
-            }
-        }
-    }
+            } // Fecha o bloco if (subEntity === 'gift' && method === 'POST')
+        } // Fecha o bloco if (id)
+    } // Fecha o bloco if (entity === 'streams')
     
     if (entity === 'presents' && id === 'live' && subEntity && method === 'GET') { // GET /api/presents/live/:streamId
         const streamId = subEntity;

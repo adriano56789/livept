@@ -64,27 +64,78 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId }
     const [users, setUsers] = useState<(User & { value: number })[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showSuccess, setShowSuccess] = useState(false);
+    const [userCount, setUserCount] = useState(0);
+    const usersRef = React.useRef<(User & { value: number })[]>([]);
+    const isMounted = React.useRef(true);
+
+    const updateUsers = React.useCallback((newUsers: (User & { value: number })[]) => {
+        if (!isMounted.current) return;
+        
+        const currentUsers = [...newUsers];
+        
+        setUsers(prevUsers => {
+            const prevUsersMap = new Map(prevUsers.map(u => [u.id, u]));
+            let hasChanges = false;
+            
+            if (prevUsers.length !== currentUsers.length) {
+                hasChanges = true;
+            } else {
+                for (let i = 0; i < currentUsers.length; i++) {
+                    const newUser = currentUsers[i];
+                    const oldUser = prevUsersMap.get(newUser.id);
+                    
+                    if (!oldUser || oldUser.value !== newUser.value) {
+                        hasChanges = true;
+                        break;
+                    }
+                }
+            }
+            
+            return hasChanges ? [...currentUsers] : prevUsers;
+        });
+        
+        usersRef.current = currentUsers;
+        setUserCount(currentUsers.length);
+    }, []);
+
+    useEffect(() => {
+        isMounted.current = true;
+        
+        const loadInitialUsers = async () => {
+            try {
+                const data = await api.getOnlineUsers(streamId);
+                if (isMounted.current) {
+                    updateUsers(data || []);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuários online:', error);
+            } finally {
+                if (isMounted.current) {
+                    setIsLoading(false);
+                }
+            }
+        };
+        
+        loadInitialUsers();
+        
+        return () => {
+            isMounted.current = false;
+        };
+    }, [streamId, updateUsers]);
 
     useEffect(() => {
         const handleUpdate = (data: { roomId: string; users: (User & { value: number })[] }) => {
             if (data.roomId === streamId) {
-                setUsers(data.users);
+                updateUsers(data.users);
             }
         };
 
         webSocketManager.on('onlineUsersUpdate', handleUpdate);
-
-        // Initial fetch
-        setIsLoading(true);
-        api.getOnlineUsers(streamId)
-            .then(data => {
-                setUsers(data || []);
-            })
-            .catch(console.error)
-            .finally(() => setIsLoading(false));
         
-        return () => webSocketManager.off('onlineUsersUpdate', handleUpdate);
-    }, [streamId]);
+        return () => {
+            webSocketManager.off('onlineUsersUpdate', handleUpdate);
+        };
+    }, [streamId, updateUsers]);
 
     return (
         <div className="absolute inset-0 z-50 flex items-end justify-center" onClick={onClose}>
@@ -96,15 +147,17 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId }
                     <button onClick={onClose} className="text-gray-300 hover:text-white">
                         <CloseIcon className="w-6 h-6" />
                     </button>
-                    <h2 className="font-bold text-lg text-white">Usuários Online ({users.length})</h2>
+                    <h2 className="font-bold text-lg text-white">Usuários Online ({userCount})</h2>
                     <button 
                         className="text-gray-300 hover:text-white flex items-center justify-center w-6 h-6"
                         onClick={async (e) => {
                             e.stopPropagation();
+                            if (isLoading) return;
+                            
                             setIsLoading(true);
                             try {
                                 const data = await api.getOnlineUsers(streamId);
-                                setUsers(data || []);
+                                updateUsers(data || []);
                             } catch (error) {
                                 console.error('Error refreshing users:', error);
                             } finally {
@@ -120,7 +173,7 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId }
                         )}
                     </button>
                 </header>
-                <main className="flex-grow overflow-y-auto no-scrollbar">
+                <main className="flex-grow overflow-y-auto no-scrollbar" style={{ contain: 'content' }}>
                     {isLoading ? (
                         <div className="flex items-center justify-center h-full">
                             <LoadingSpinner />
