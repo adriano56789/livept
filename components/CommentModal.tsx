@@ -74,9 +74,9 @@ const CommentModal: React.FC<CommentModalProps> = ({ photo, currentUser, onClose
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-white/80" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={onClose}>
       <div
-        className="bg-[#1C1C1E] w-full max-w-md h-[70%] rounded-t-2xl flex flex-col shadow-lg"
+        className="bg-[#1C1C1E] w-full max-w-md h-[70%] rounded-t-2xl flex flex-col shadow-lg border-t border-gray-700"
         onClick={e => e.stopPropagation()}
       >
         <header className="flex-shrink-0 p-4 text-center relative border-b border-gray-700">
