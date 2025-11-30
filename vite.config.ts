@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 export default defineConfig({
   plugins: [react()],
   root: '.',
-  base: '/',
+  base: './',
   server: {
     port: 5173,
     host: '0.0.0.0',
@@ -17,7 +17,8 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@components': path.resolve(__dirname, './components'),
-      '@icons': path.resolve(__dirname, './components/icons')
+      '@icons': path.resolve(__dirname, './components/icons'),
+      '@i18n': path.resolve(__dirname, './i18n')
     }
   },
   build: {

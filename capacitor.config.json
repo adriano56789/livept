@@ -3,16 +3,38 @@
   "appName": "LiveGo",
   "webDir": "dist",
   "bundledWebRuntime": false,
-  "backgroundColor": "#000000",
-  "server": {
-    "androidScheme": "https"
-  },
+  "backgroundColor": "#FFFFFF",
   "android": {
     "allowMixedContent": true,
     "captureInput": true,
-    "webContentsDebuggingEnabled": true
+    "webContentsDebuggingEnabled": true,
+    "backgroundColor": "#FFFFFF",
+    "buildOptions": {
+      "keystorePath": "",
+      "keystoreAlias": "",
+      "keystorePassword": "",
+      "keyPassword": ""
+    },
+    "permissions": [
+      "CAMERA",
+      "RECORD_AUDIO",
+      "MODIFY_AUDIO_SETTINGS",
+      "INTERNET",
+      "ACCESS_NETWORK_STATE",
+      "ACCESS_WIFI_STATE"
+    ]
   },
   "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1000,
+      "launchAutoHide": true,
+      "backgroundColor": "#FFFFFF",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
     "StatusBar": {
       "style": "DARK",
       "overlaysWebView": true,

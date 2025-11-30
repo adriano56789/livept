@@ -49,12 +49,23 @@ const PrivateChatModal: React.FC<PrivateChatModalProps> = ({ isOpen, onClose, on
   
   return (
     <div 
-      className={`absolute inset-0 z-[100] flex items-end justify-center transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      className={`fixed inset-0 z-[100] flex items-end justify-center transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
       onClick={onClose}
+      style={{
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backdropFilter: 'blur(4px)'
+      }}
     >
       <div
-        className={`bg-[#1C1C1E] w-full max-w-md h-3/4 rounded-t-2xl p-3 flex flex-col transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`bg-[#1C1C1E] w-full max-w-md rounded-t-2xl p-3 flex flex-col transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
         onClick={e => e.stopPropagation()}
+        style={{
+          maxHeight: '80%',
+          height: 'auto',
+          position: 'relative',
+          bottom: 0,
+          marginBottom: 'env(safe-area-inset-bottom, 0)'
+        }}
       >
         <header className="flex items-center justify-between mb-3 pb-3 border-b border-gray-700 flex-shrink-0">
           <h2 className="text-lg font-semibold text-gray-200">Mensagens Privadas</h2>
@@ -62,7 +73,16 @@ const PrivateChatModal: React.FC<PrivateChatModalProps> = ({ isOpen, onClose, on
             <CloseIcon className="w-5 h-5" />
           </button>
         </header>
-        <div className="flex-grow overflow-y-auto no-scrollbar">
+        <div 
+          className="flex-grow overflow-y-auto no-scrollbar"
+          style={{
+            maxHeight: 'calc(100vh - 180px)',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+            paddingBottom: 'env(safe-area-inset-bottom, 0)'
+          }}
+        >
             {conversations.map(convo => (
                 <ConversationItem key={convo.id} conversation={convo} onClick={() => handleStartChat(convo.friend)} />
             ))}

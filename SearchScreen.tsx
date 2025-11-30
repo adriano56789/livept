@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { User } from '../types';
-import { BackIcon, SearchIcon, PlusIcon } from './icons';
-import { useTranslation } from '../i18n';
+import { User } from './types';
+import { BackIcon, SearchIcon, PlusIcon } from './components/icons';
+import { useTranslation } from './i18n';
 
 interface SearchScreenProps {
   onClose: () => void;
@@ -65,7 +65,14 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ onClose, onViewProfile, all
 
     return (
         <div className="absolute inset-0 bg-[#111] z-50 flex flex-col text-white">
-            <header className="flex items-center p-4 border-b border-gray-800 flex-shrink-0 space-x-4">
+            <header className="flex items-center p-4 border-b border-gray-800 flex-shrink-0 space-x-4" style={{
+                paddingTop: 'env(safe-area-inset-top, 0)',
+                paddingBottom: '1rem',
+                backgroundColor: '#111',
+                position: 'sticky',
+                top: 0,
+                zIndex: 10
+            }}>
                 <button onClick={onClose}>
                     <BackIcon className="w-6 h-6" />
                 </button>
@@ -78,10 +85,22 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ onClose, onViewProfile, all
                         onChange={(e) => handleSearch(e.target.value)}
                         className="w-full bg-[#2C2C2E] text-white placeholder-gray-400 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:ring-1 focus:ring-purple-500"
                         autoFocus
+                        style={{
+                            WebkitAppearance: 'none',
+                            fontSize: '16px' // Evita zoom no iOS
+                        }}
                     />
                 </div>
             </header>
-            <main className="flex-grow overflow-y-auto no-scrollbar">
+            <main 
+                className="flex-grow overflow-y-auto no-scrollbar"
+                style={{
+                    paddingBottom: 'env(safe-area-inset-bottom, 0)',
+                    WebkitOverflowScrolling: 'touch',
+                    overscrollBehavior: 'contain',
+                    maxHeight: 'calc(100vh - 65px)' // Ajuste para o cabeçalho
+                }}
+            >
                 {query && results.length > 0 && (
                     results.map(user => <UserItem key={user.id} user={user} onViewProfile={onViewProfile} onFollow={onFollowUser} />)
                 )}
@@ -92,11 +111,18 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ onClose, onViewProfile, all
                     </div>
                 )}
                  {!query && (
-                    <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 p-8">
-                        <SearchIcon className="w-16 h-16 mb-4" />
-                        <p>{t('search.prompt')}</p>
+                    <div className="flex flex-col items-center justify-center text-center text-gray-500 p-8" style={{
+                        minHeight: 'calc(100vh - 200px)', // Ajuste para o espaço do cabeçalho e teclado
+                        padding: '2rem 1rem',
+                        boxSizing: 'border-box'
+                    }}>
+                        <div className="mb-6">
+                            <SearchIcon className="w-16 h-16 mx-auto" />
+                        </div>
+                        <p className="text-lg mb-2">{t('search.prompt')}</p>
+                        <p className="text-sm text-gray-400">Digite para começar a buscar</p>
                     </div>
-                 )}
+                )}
             </main>
         </div>
     );
