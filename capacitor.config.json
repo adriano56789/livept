@@ -4,6 +4,10 @@
   "webDir": "dist",
   "bundledWebRuntime": false,
   "backgroundColor": "#FFFFFF",
+  "server": {
+    "url": "http://192.168.3.21",
+    "cleartext": true
+  },
   "android": {
     "allowMixedContent": true,
     "captureInput": true,
