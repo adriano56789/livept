@@ -6,10 +6,46 @@
   --sal: env(safe-area-inset-left);
 }
 
-/* Reset de estilos para elementos de formulário */
-select,
-textarea,
-[role="button"],
+/* Estilo personalizado para botões consistentes entre web e mobile */
+.btn-primary {
+  background-color: rgb(26, 8, 57) !important;
+  background-image: none !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  padding: 10px 24px !important;
+  font-weight: 500 !important;
+  font-size: 15px !important;
+  line-height: 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  transition: all 0.2s ease !important;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.1) !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  cursor: pointer !important;
+}
+
+.btn-primary:hover,
+.btn-primary:active,
+.btn-primary:focus {
+  background-color: rgb(26, 8, 57) !important;
+  background-image: none !important;
+  transform: none !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Remover estilos nativos do Android para WebView */
+@supports (-webkit-touch-callout: none) {
+  .btn-primary {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
 [type="button"],
 [type="reset"],
 [type="submit"] {
