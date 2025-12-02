@@ -131,8 +131,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         
         // Define uma prioridade fixa, já que só queremos uma notificação por vez
         const priority = 1;
-        // Define uma duração longa (1 hora) para garantir que não expire sozinha
-        const duration = 60 * 60 * 1000; // 1 hora em milissegundos
+        // Define a duração da notificação para 10 segundos
+        const duration = 10 * 1000; // 10 segundos em milissegundos
         
         // Solicita permissão ao gerenciador de animações
         const { id, canStart } = animationManager.requestAnimation(priority, duration);

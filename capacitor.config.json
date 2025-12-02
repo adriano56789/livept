@@ -5,6 +5,7 @@
   "bundledWebRuntime": false,
   "icon": "resources/icon.png",
   "server": {
+    "url": "http://localhost:5173",
     "androidScheme": "https",
     "cleartext": true,
     "allowNavigation": ["*"],

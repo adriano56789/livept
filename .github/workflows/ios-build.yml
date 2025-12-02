@@ -1,0 +1,38 @@
+name: Build iOS
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build web assets
+      run: npm run build
+      
+    - name: Setup iOS
+      run: |
+        npx cap add ios
+        npx cap sync ios
+        cd ios/App
+        pod install
+        cd ../..
+        
+    - name: Build iOS
+      run: |
+        xcodebuild -workspace ios/App/App.xcworkspace \
+                  -scheme App \
+                  -configuration Debug \
+                  -sdk iphonesimulator \
+                  -allowProvisioningUpdates \
+                  CODE_SIGNING_ALLOWED=NO
