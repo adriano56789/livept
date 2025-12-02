@@ -991,6 +991,50 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 }
                 return { status: 200, data: { success: true } };
             }
+            if (subEntity === 'gifts' && method === 'GET') {
+                const streamId = id;
+                const session = db.liveSessions.get(streamId);
+                if (!session) return { status: 200, data: [] }; // Retorna vazio se não houver sessão
+
+                const allGifts: Array<{
+                    fromUser: User;
+                    gift: Gift;
+                    quantity: number;
+                    timestamp: number;
+                }> = [];
+
+                // Verificar se existem remetentes de presentes
+                if (session.giftSenders) {
+                    for (const [userId, senderData] of session.giftSenders.entries()) {
+                        const user = db.users.get(userId);
+                        if (!user || !senderData.giftsSent) continue;
+
+                        // Adicionar cada presente enviado pelo usuário
+                        for (const giftSent of senderData.giftsSent) {
+                            const gift = db.gifts.find(g => g.name === giftSent.name);
+                            if (gift) {
+                                allGifts.push({
+                                    fromUser: {
+                                        id: user.id,
+                                        name: user.name,
+                                        avatarUrl: user.avatarUrl,
+                                        level: user.level
+                                    } as User,
+                                    gift,
+                                    quantity: giftSent.quantity,
+                                    timestamp: Date.now() - Math.floor(Math.random() * 3600000) // Simula timestamps variados
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Ordenar por timestamp (mais recentes primeiro)
+                allGifts.sort((a, b) => b.timestamp - a.timestamp);
+
+                return { status: 200, data: allGifts };
+            }
+            
             if (subEntity === 'gift' && method === 'POST') {
                 const streamId = id;
                 const { fromUserId, giftName, amount } = body;

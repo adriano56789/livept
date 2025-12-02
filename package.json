@@ -29,15 +29,17 @@
     "react-dom": "^19.2.0",
     "react-i18next": "^16.2.4",
     "react-icons": "^5.5.0",
+    "sharp": "^0.34.5",
     "styled-components": "^6.1.19"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@tailwindcss/postcss7-compat": "^2.2.17",
     "@types/node": "^22.19.0",
     "@types/react-native": "^0.72.8",
     "@vitejs/plugin-basic-ssl": "^2.1.0",
     "@vitejs/plugin-react": "^5.1.1",
-    "autoprefixer": "^9.8.8",
+    "autoprefixer": "^10.4.22",
     "concurrently": "^9.2.1",
     "postcss": "^7.0.39",
     "rollup-plugin-visualizer": "^6.0.5",

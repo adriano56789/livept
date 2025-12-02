@@ -83,7 +83,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('register.name')} required autoComplete="name" className="w-full bg-gray-700/80 text-white placeholder-gray-400 rounded-full py-2.5 px-6 text-base focus:outline-none focus:ring-2 focus:ring-purple-500" />
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('common.email')} required autoComplete="email" className="w-full bg-gray-700/80 text-white placeholder-gray-400 rounded-full py-2.5 px-6 text-base focus:outline-none focus:ring-2 focus:ring-purple-500" />
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t('common.password')} required autoComplete="new-password" className="w-full bg-gray-700/80 text-white placeholder-gray-400 rounded-full py-2.5 px-6 text-base focus:outline-none focus:ring-2 focus:ring-purple-500" />
-            <button type="submit" className="w-full bg-purple-600 text-white font-semibold rounded-full py-2.5 px-6 text-base shadow-lg hover:bg-purple-700 transition-colors">{t('register.createButton')}</button>
+            <button 
+              type="submit" 
+              className="w-full bg-purple-600 text-white font-semibold rounded-full py-2.5 px-6 text-base shadow-lg hover:bg-purple-700 transition-colors"
+              style={{
+                backgroundColor: '#7C3AED',
+                color: 'white',
+                fontWeight: 600,
+                borderRadius: '9999px',
+                padding: '0.625rem 1.5rem',
+                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+              }}
+            >
+              {t('register.createButton')}
+            </button>
           </form>
         );
       case 'login':
@@ -94,7 +107,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             <div className="text-right -mt-2">
               <button type="button" onClick={() => setViewMode('forgotPassword')} className="text-sm text-purple-400 font-semibold hover:underline px-2 py-1">{t('login.forgotPassword')}</button>
             </div>
-            <button type="submit" className="w-full bg-purple-600 text-white font-semibold rounded-full py-2.5 px-6 text-base shadow-lg hover:bg-purple-700 transition-colors">{t('login.loginButton')}</button>
+            <button 
+              type="submit" 
+              className="w-full bg-purple-600 text-white font-semibold rounded-full py-2.5 px-6 text-base shadow-lg hover:bg-purple-700 transition-colors"
+              style={{
+                backgroundColor: '#7C3AED',
+                color: 'white',
+                fontWeight: 600,
+                borderRadius: '9999px',
+                padding: '0.625rem 1.5rem',
+                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+              }}
+            >
+              {t('login.loginButton')}
+            </button>
           </form>
         );
       case 'forgotPassword':
@@ -163,12 +189,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
         <div className="flex-shrink-0 text-center space-y-4 py-4 mt-auto">
             {(viewMode === 'login' || viewMode === 'register') && (
-              <p className="text-gray-400 text-sm">
-                {viewMode === 'register' ? t('register.haveAccount') : t('login.noAccount')}{' '}
-                <button onClick={() => switchView(viewMode === 'register' ? 'login' : 'register')} className="text-purple-400 font-semibold hover:underline">
+              <div className="w-full space-y-4">
+                <p className="text-gray-400 text-sm">
+                  {viewMode === 'register' ? t('register.haveAccount') : t('login.noAccount')}
+                </p>
+                <button 
+                  onClick={() => switchView(viewMode === 'register' ? 'login' : 'register')} 
+                  className="w-full bg-purple-600 text-white font-semibold rounded-full py-2.5 px-6 text-base shadow-lg hover:bg-purple-700 transition-colors"
+                >
                   {viewMode === 'register' ? t('login.loginButton') : t('login.createOne')}
                 </button>
-              </p>
+              </div>
             )}
             <div className="text-xs text-gray-500">
                 <p>{t('login.terms')}</p>

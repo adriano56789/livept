@@ -21,9 +21,30 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
     const { t } = useTranslation();
     const [isEditMode, setIsEditMode] = useState(false);
     const [giftsByTab, setGiftsByTab] = useState<Record<string, Gift[]>>({});
+    const modalRef = useRef<HTMLDivElement>(null);
 
     const dragItem = useRef<Gift | null>(null);
     const dragOverItem = useRef<Gift | null>(null);
+
+    useEffect(() => {
+        const handleTouchMove = (e: TouchEvent) => {
+            if (isOpen && modalRef.current && !modalRef.current.contains(e.target as Node)) {
+                e.preventDefault();
+            }
+        };
+
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+            document.addEventListener('touchmove', handleTouchMove, { passive: false });
+        } else {
+            document.body.style.overflow = '';
+        }
+
+        return () => {
+            document.body.style.overflow = '';
+            document.removeEventListener('touchmove', handleTouchMove);
+        };
+    }, [isOpen]);
 
     useEffect(() => {
         const groupedGifts = gifts.reduce((acc, gift) => {
@@ -135,12 +156,30 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
 
     return (
         <div 
-            className={`absolute inset-0 z-30 flex items-end ${isOpen ? '' : 'pointer-events-none'}`} 
+            ref={modalRef}
+            className={`fixed inset-0 z-50 flex items-end ${isOpen ? '' : 'pointer-events-none'}`}
             onClick={onClose}
+            onTouchMove={(e) => {
+                e.stopPropagation();
+                e.nativeEvent.stopImmediatePropagation();
+            }}
+            onTouchStart={(e) => {
+                e.stopPropagation();
+                e.nativeEvent.stopImmediatePropagation();
+            }}
         >
             <div 
-                className={`bg-[#1C1C1E] w-full max-w-md h-[60%] rounded-t-2xl flex flex-col transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-y-0' : 'translate-y-full'}`} 
-                onClick={e => e.stopPropagation()}
+                className={`bg-[#1C1C1E] w-full max-w-md h-[60%] rounded-t-2xl flex flex-col transform transition-transform duration-300 ease-in-out ${
+                    isOpen ? 'translate-y-0' : 'translate-y-full'
+                }`} 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                }}
+                onTouchMove={(e) => {
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                }}
             >
                 <header className="flex-shrink-0 p-3">
                     <div className="flex justify-between items-center mb-2 relative text-center h-9">
@@ -239,7 +278,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
                     <footer className="flex-shrink-0 p-3 border-t border-gray-700 flex flex-col space-y-3">
                         <div className="flex items-center justify-between">
                             <div className="text-xs text-gray-400">
-                                {selectedGift ? t('gifts.canSend', { count: maxCanSend }) : t('gifts.selectGift')}
+                                {selectedGift ? t('gifts.canSend').replace('{count}', maxCanSend.toString()) : t('gifts.selectGift')}
                             </div>
                             <button 
                                 onClick={handleSend} 

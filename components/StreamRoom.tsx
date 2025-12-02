@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Gift, User, Streamer, ToastType, RankedUser, LiveSessionState } from '../types';
+import { api } from '../services/api';
 import { animationManager } from '../utils/AnimationManager';
 import OnlineUsersModal from './live/OnlineUsersModal';
 import ChatMessage from './live/ChatMessage';
@@ -7,14 +10,11 @@ import EntryChatMessage from './live/EntryChatMessage';
 import ChatScreen from './ChatScreen';
 import ToolsModal from './ToolsModal';
 import { GiftIcon, MessageIcon, SendIcon, MoreIcon, CloseIcon, PlusIcon, SoundWaveIcon, ViewerIcon, GoldCoinWithGIcon, HeartIcon, TrophyIcon, BellIcon, TranslateIcon, CalendarIcon, FanClubHeaderIcon } from './icons';
-import { Streamer, User, Gift, ToastType, RankedUser, LiveSessionState } from '../types';
 import ContributionRankingModal from './ContributionRankingModal';
 import BeautyEffectsPanel from './live/BeautyEffectsPanel';
 import ResolutionPanel from './live/ResolutionPanel';
 import GiftModal from './live/GiftModal';
 import GiftAnimationOverlay, { GiftPayload } from './live/GiftAnimationOverlay';
-import { useTranslation } from '../i18n';
-import { api } from '../services/api';
 import UserActionModal from './UserActionModal';
 import { webSocketManager } from '../services/websocket';
 import FriendRequestNotification from './live/FriendRequestNotification';
@@ -90,7 +90,8 @@ const FollowChatMessage: React.FC<{ follower: string; followed: string }> = ({ f
 
 // FIX: Added 'onOpenFanClubMembers' to props destructuring.
 const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, onLeaveStreamView, onStartPKBattle, onViewProfile, currentUser, onOpenWallet, onFollowUser, onOpenPrivateChat, onOpenPrivateInviteModal, setActiveScreen, onStartChatWithStreamer, onOpenPKTimerSettings, onOpenFans, onOpenFriendRequests, gifts, receivedGifts, updateUser, liveSession, updateLiveSession, logLiveEvent, onStreamUpdate, refreshStreamRoomData, addToast, followingUsers, streamers, onSelectStream, onOpenVIPCenter, onOpenFanClubMembers }) => {
-    const { t, language } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const language = i18n.language;
     const [isUiVisible, setIsUiVisible] = useState(true);
     const [isToolsOpen, setIsToolsOpen] = useState(false);
     const [isBeautyPanelOpen, setBeautyPanelOpen] = useState(false);
@@ -869,7 +870,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                             <input 
                                 ref={chatInputRef}
                                 type="text" 
-                                placeholder={t('streamRoom.sayHi')} 
+                                placeholder={t('diga oi')} 
                                 value={chatInput}
                                 onChange={handleChatInputChange}
                                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
