@@ -18,20 +18,7 @@ function formatResponse(status: number, data?: any, error?: string): ApiResponse
     };
 }
 
-// Log de inicialização do servidor mock
-console.log('🔹 [MOCK API] Servidor de simulação inicializado');
-console.log('🔹 [MOCK API] Rotas disponíveis:');
-console.log('   POST   /api/feed/posts');
-console.log('   GET    /api/feed/photos');
-console.log('   GET    /api/visitors/list/:userId');
-console.log('   GET    /api/users/:userId/photos');
-console.log('   GET    /api/market');
-console.log('   GET    /api/pk/battle');
-console.log('   GET    /api/blocked-users');
-console.log('   GET    /api/broadcaster/:id');
-console.log('   GET    /api/visitors');
-console.log('   POST   /api/live/start');
-console.log('🔹 [MOCK API] Aguardando requisições...\n');
+
 
 interface ApiResponse {
   status: number;
@@ -976,8 +963,8 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
 
                 usersWithValue.sort((a, b) => b.value - a.value);
 
-                // Emitir evento de atualização via WebSocket
-                webSocketServerInstance.emit('onlineUsersUpdate', { 
+                // Enviar atualização de usuários online via WebSocket
+                webSocketServerInstance.broadcast('onlineUsersUpdate', { 
                     roomId: streamId, 
                     users: usersWithValue 
                 });
@@ -1415,7 +1402,17 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             const messageId = String(newMessage.id);
             db.messages.set(messageId, { ...newMessage, id: messageId });
             
-            webSocketServerInstance.broadcastNewMessageToChat(chatKey, newMessage, tempId);
+// Primeiro notifica sobre a nova mensagem
+            webSocketServerInstance.broadcastNewMessageToChat(chatKey, newMessage);
+            
+            // Se houver um tempId, envia um ACK para o remetente
+            if (tempId) {
+                const senderSocket = webSocketServerInstance['connections'].get(fromUserId);
+                senderSocket?.onMessage({
+                    type: 'messageAck',
+                    payload: { tempId, message: newMessage }
+                });
+            }
             saveDb();
             
             return { status: 201, data: newMessage };

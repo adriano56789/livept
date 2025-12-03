@@ -206,6 +206,7 @@ export interface LiveSessionState {
   startTime: number;
   viewers: number;
   peakViewers: number;
+  isPrivate?: boolean;
   coins: number;
   followers: number;
   members: number;
@@ -234,7 +235,7 @@ export type BeautySettings = {
 export interface PurchaseRecord {
   id: string;
   userId: string;
-  type: 'purchase_diamonds' | 'withdraw_earnings' | 'withdraw_platform_earnings' | 'purchase_frame';
+  type: 'purchase_diamonds' | 'withdraw_earnings' | 'withdraw_platform_earnings' | 'purchase_frame' | 'vip_subscription';
   description: string;
   amountBRL: number;
   amountCoins: number;

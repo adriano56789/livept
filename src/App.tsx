@@ -1,55 +1,78 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
-import LoginScreen from './components/LoginScreen';
-import MainScreen from './components/MainScreen';
-import ProfileScreen from './components/ProfileScreen';
-import MessagesScreen from './components/MessagesScreen';
-import ChatScreen from './components/ChatScreen';
-import FooterNav from './components/FooterNav';
-import ReminderModal from './components/ReminderModal';
-import RegionModal from './components/RegionModal';
-import GoLiveScreen from './components/GoLiveScreen';
-import StreamRoom from './components/StreamRoom';
-import PKBattleScreen from './components/PKBattleScreen';
-import { ToastType, ToastData, Streamer, User, Gift, StreamSummaryData, LiveSessionState, RankedUser, Conversation, Country, NotificationSettings, BeautySettings, FeedPhoto, StreamHistoryEntry, Visitor, PurchaseRecord } from './types';
-import Toast from './components/Toast';
-import UserProfileScreen from './components/BroadcasterProfileScreen';
-import EditProfileScreen from './components/EditProfileScreen';
-import WalletScreen from './components/WalletScreen';
-import FollowingScreen from './components/FollowingScreen';
-import FansScreen from './components/FansScreen';
-import VisitorsScreen from './components/VisitorsScreen';
-import TopFansScreen from './components/TopFansScreen';
-import MyLevelScreen from './components/MyLevelScreen';
-import BlockListScreen from './components/BlockListScreen';
-import AvatarProtectionScreen from './components/AvatarProtectionScreen';
-import MarketScreen from './components/MarketScreen';
-import FAQScreen from './components/FAQScreen';
-import SettingsScreen from './components/settings/SettingsScreen';
-import ConfirmPurchaseScreen from './components/ConfirmPurchaseScreen';
-import SearchScreen from './components/SearchScreen';
-import CameraPermissionModal from './components/CameraPermissionModal';
-import LocationPermissionModal from './components/LocationPermissionModal';
-import EndStreamConfirmationModal from './components/live/EndStreamConfirmationModal';
-import EndStreamSummaryScreen from './components/EndStreamSummaryScreen';
-import PrivateChatModal from './components/PrivateChatModal';
-import PKBattleTimerSettingsScreen from './components/settings/PKBattleTimerSettingsScreen';
-import FriendRequestsScreen from './components/FriendRequestsScreen';
 import { LanguageProvider, useTranslation } from './i18n';
-import { api } from './services/api';
-import { LoadingSpinner } from './components/Loading';
-import { webSocketManager } from './services/websocket';
-import { db, avatarFrames } from './services/database';
-import PipSettingsModal from './components/settings/PipSettingsModal';
-import PrivateInviteModal from './components/PrivateInviteModal';
-import VideoScreen from './components/VideoScreen';
-import FullScreenPhotoViewer from './components/FullScreenPhotoViewer';
-import LiveHistoryScreen from './components/LiveHistoryScreen';
-import LanguageSelectionModal from './components/settings/LanguageSelectionModal';
-import AdminWalletScreen from './components/AdminWalletScreen';
-import VIPCenterScreen from './components/VIPCenterScreen';
-import FanClubMembersModal from './components/live/FanClubMembersModal';
 
+// Importando serviços
+import { api } from '../services/api';
+import { webSocketManager } from '../services/websocket';
+import { db, avatarFrames } from '../services/database';
+
+// Importando tipos
+import { 
+  ToastType, 
+  ToastData, 
+  Streamer, 
+  User, 
+  Gift, 
+  StreamSummaryData, 
+  LiveSessionState, 
+  RankedUser, 
+  Conversation, 
+  Country, 
+  NotificationSettings, 
+  BeautySettings, 
+  FeedPhoto, 
+  StreamHistoryEntry, 
+  Visitor, 
+  PurchaseRecord 
+} from '../types';
+
+// Importando componentes que estão na pasta components
+import LoginScreen from '../components/LoginScreen';
+import MainScreen from '../components/MainScreen';
+import ProfileScreen from '../components/ProfileScreen';
+import MessagesScreen from '../components/MessagesScreen';
+import ChatScreen from '../components/ChatScreen';
+import FooterNav from '../components/FooterNav';
+import ReminderModal from '../components/ReminderModal';
+import RegionModal from '../components/RegionModal';
+import GoLiveScreen from '../components/GoLiveScreen';
+import StreamRoom from '../components/StreamRoom';
+import PKBattleScreen from '../components/PKBattleScreen';
+import Toast from '../components/Toast';
+import UserProfileScreen from '../components/BroadcasterProfileScreen';
+import EditProfileScreen from '../components/EditProfileScreen';
+import WalletScreen from '../components/WalletScreen';
+import FollowingScreen from '../components/FollowingScreen';
+import FansScreen from '../components/FansScreen';
+import VisitorsScreen from '../components/VisitorsScreen';
+import TopFansScreen from '../components/TopFansScreen';
+import MyLevelScreen from '../components/MyLevelScreen';
+import BlockListScreen from '../components/BlockListScreen';
+import AvatarProtectionScreen from '../components/AvatarProtectionScreen';
+import MarketScreen from '../components/MarketScreen';
+import FAQScreen from '../components/FAQScreen';
+import SettingsScreen from '../SettingsScreen';
+import ConfirmPurchaseScreen from '../components/ConfirmPurchaseScreen';
+import SearchScreen from '../components/SearchScreen';
+import CameraPermissionModal from '../components/CameraPermissionModal';
+import LocationPermissionModal from '../components/LocationPermissionModal';
+import PrivateChatModal from '../components/PrivateChatModal';
+import FriendRequestsScreen from '../components/FriendRequestsScreen';
+import VideoScreen from '../components/VideoScreen';
+import FullScreenPhotoViewer from '../components/FullScreenPhotoViewer';
+import LiveHistoryScreen from '../components/LiveHistoryScreen';
+import AdminWalletScreen from '../components/AdminWalletScreen';
+import VIPCenterScreen from '../components/VIPCenterScreen';
+import PrivateInviteModal from '../components/PrivateInviteModal';
+
+// Importando componentes de pastas específicas
+import EndStreamConfirmationModal from '../components/live/EndStreamConfirmationModal';
+import PKBattleTimerSettingsScreen from '../components/settings/PKBattleTimerSettingsScreen';
+import PipSettingsModal from '../components/settings/PipSettingsModal';
+import LanguageSelectionModal from '../components/settings/LanguageSelectionModal';
+import FanClubMembersModal from '../components/live/FanClubMembersModal';
+import EndStreamSummaryScreen from '../components/EndStreamSummaryScreen';
+import { LoadingSpinner } from '../components/Loading';
 
 interface StreamRoomData {
     gifts: Gift[];
@@ -1164,8 +1187,28 @@ const handleDenyLocation = async () => {
         <>
           <div className="h-full w-full">
             {activeScreen === 'main' && <MainScreen onOpenReminderModal={() => setIsReminderModalOpen(true)} onOpenRegionModal={() => setIsRegionModalOpen(true)} onSelectStream={handleSelectStream} onOpenSearch={() => setIsSearchScreenOpen(true)} streamers={streamers} isLoading={isLoadingStreamers} activeTab={activeCategory} onTabChange={handleTabChange} showLocationBanner={showLocationBanner}/>}
-            {activeScreen === 'video' && <VideoScreen onViewProfile={handleViewProfile} onOpenPhotoViewer={(photos, index) => setPhotoViewerData({ photos, initialIndex: index })} />}
-            {activeScreen === 'profile' && 
+            {activeScreen === 'video' && currentUser && (
+              <VideoScreen 
+                currentUser={currentUser}
+                onViewProfile={handleViewProfile}
+                onPhotoLiked={() => setLastPhotoLikeUpdate(Date.now())}
+                onViewMusic={(music) => {
+                  // Implementar lógica para visualizar música
+                  console.log('Viewing music:', music);
+                }}
+                onFollowUser={(user) => {
+                  // Implementar lógica para seguir usuário
+                  console.log('Following user:', user);
+                }}
+                lastPhotoLikeUpdate={lastPhotoLikeUpdate}
+                onOpenPhotoViewer={(photos, index) => setPhotoViewerData({ photos, initialIndex: index })}
+                onUseSound={(music) => {
+                  // Implementar lógica para usar o som
+                  console.log('Using sound:', music);
+                }}
+              />
+            )}
+            {activeScreen === 'profile' && currentUser && 
                 <ProfileScreen 
                     currentUser={currentUser}
                     onOpenProfile={() => handleViewProfile(currentUser)} 
@@ -1179,12 +1222,12 @@ const handleDenyLocation = async () => {
                     onOpenMarket={() => setIsMarketScreenOpen(true)}
                     onOpenMyLevel={() => setIsMyLevelScreenOpen(true)}
                     onOpenBlockList={() => handleOpenListScreen('blocklist')}
-                    onOpenAvatarProtection={() => setIsAvatarProtectionScreenOpen(true)}
                     onOpenFAQ={() => setIsFAQScreenOpen(true)}
                     onOpenSettings={() => setIsSettingsScreenOpen(true)}
                     onOpenSupportChat={() => api.getAllUsers().then(users => setChattingWith(users.find(u => u.id === 'support-livercore')))}
                     onOpenAdminWallet={() => setIsAdminWalletOpen(true)}
                     visitors={visitors}
+                    onOpenAvatarProtection={() => setIsAvatarProtectionScreenOpen(true)}
                 />
             }
             {activeScreen === 'messages' && <MessagesScreen onStartChat={setChattingWith} onViewProfile={handleViewProfile} conversations={conversations} friends={friends} initialTab={messagesInitialTab} onOpenFriendRequests={() => setIsFriendRequestsScreenOpen(true)} fans={fans} followingUsers={followingUsers} />}
@@ -1215,7 +1258,14 @@ const handleDenyLocation = async () => {
       {isAvatarProtectionScreenOpen && <AvatarProtectionScreen onClose={() => setIsAvatarProtectionScreenOpen(false)} currentUser={currentUser} updateUser={updateUserEverywhere} addToast={addToast} />}
       {isMarketScreenOpen && <MarketScreen onClose={() => setIsMarketScreenOpen(false)} user={currentUser} onPurchaseFrame={handlePurchaseFrame} updateUser={updateUserEverywhere} onOpenWallet={handleOpenWallet} addToast={addToast} onOpenVIPCenter={handleOpenVIPCenter} onPurchaseEffect={handlePurchaseEffect} gifts={allGifts} />}
       {isFAQScreenOpen && <FAQScreen onClose={() => setIsFAQScreenOpen(false)} />}
-      {isSettingsScreenOpen && <SettingsScreen onClose={() => setIsSettingsScreenOpen(false)} currentUser={currentUser} gifts={allGifts} updateUser={updateUserEverywhere} addToast={addToast} onOpenPipModal={() => setIsPipSettingsModalOpen(true)} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onOpenLanguageModal={() => setIsLanguageModalOpen(true)} />}
+      {isSettingsScreenOpen && (
+        <SettingsScreen 
+          onClose={() => setIsSettingsScreenOpen(false)} 
+          currentUser={currentUser} 
+          gifts={allGifts} 
+          onOpenVIPCenter={handleOpenVIPCenter}
+        />
+      )}
       <PipSettingsModal isOpen={isPipSettingsModalOpen} onClose={() => setIsPipSettingsModalOpen(false)} currentUser={currentUser} updateUser={updateUserEverywhere} addToast={addToast} />
       <LanguageSelectionModal isOpen={isLanguageModalOpen} onClose={() => setIsLanguageModalOpen(false)} currentLanguage={language} onSave={(lang) => { setLanguage(lang); setIsLanguageModalOpen(false); }} />
       {isSearchScreenOpen && <SearchScreen onClose={() => setIsSearchScreenOpen(false)} onViewProfile={handleViewProfile} allUsers={allUsers} onFollowUser={handleFollowUser} />}

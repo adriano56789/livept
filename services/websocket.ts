@@ -2,12 +2,39 @@
 import * as database from './database';
 import { Message, User, Gift, Streamer, EligibleUser, PurchaseRecord } from '../types';
 
-if (!(database.db as any).kickedUsers) {
-    (database.db as any).kickedUsers = new Map<string, Set<string>>();
-}
-if (!(database.db as any).moderators) {
-    (database.db as any).moderators = new Map<string, Set<string>>();
-}
+// Safe database accessor function
+const getDatabase = () => {
+    try {
+        return (database as any).db;
+    } catch (error) {
+        return null;
+    }
+};
+
+// Initialize maps when needed
+const ensureMapsInitialized = () => {
+    const db = getDatabase();
+    if (!db) return;
+    
+    if (!db.kickedUsers) {
+        db.kickedUsers = new Map<string, Set<string>>();
+    }
+    if (!db.moderators) {
+        db.moderators = new Map<string, Set<string>>();
+    }
+};
+
+// Lazy initialization - will be called when first needed
+let mapsInitialized = false;
+const initializeMapsIfNeeded = () => {
+    if (mapsInitialized) return;
+    
+    const db = getDatabase();
+    if (db) {
+        ensureMapsInitialized();
+        mapsInitialized = true;
+    }
+};
 
 // --- Simple Event Emitter ---
 class EventEmitter {
