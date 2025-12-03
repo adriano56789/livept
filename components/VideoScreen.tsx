@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../services/api';
 import { FeedPhoto, User, MusicTrack } from '../types';
@@ -126,44 +124,76 @@ const VideoSlide: React.FC<VideoSlideProps> = ({ video, onViewProfile, onPhotoLi
         onUseSound(musicTrack);
     };
 
+    // Debug: Verificar os dados do vídeo
+    console.log('Dados do vídeo:', {
+        id: video.id,
+        description: (video as any).description,
+        caption: (video as any).caption,
+        photoUrl: video.photoUrl,
+        type: video.type,
+        user: video.user.name,
+        hasAudio: !!video.audioUrl
+    });
+
+    // Função para lidar com erros de carregamento de vídeo
+    const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+        console.error('Erro ao carregar vídeo:', e);
+        const videoElement = e.currentTarget;
+        
+        // Tentar carregar o thumbnail como fallback
+        if (video.thumbnailUrl) {
+            console.log('Tentando carregar thumbnail como fallback');
+            const img = document.createElement('img');
+            img.src = video.thumbnailUrl;
+            img.className = 'absolute inset-0 w-full h-full object-cover';
+            img.onerror = () => {
+                console.error('Falha ao carregar thumbnail');
+            };
+            
+            // Substituir o vídeo pela imagem
+            if (videoElement.parentNode) {
+                videoElement.parentNode.insertBefore(img, videoElement);
+                videoElement.style.display = 'none';
+            }
+        }
+        
+        // Mostrar botão de play para tentar novamente
+        setShowPlayIcon(true);
+    };
+
     return (
-        <div className="relative h-full w-full snap-center" onClick={togglePlayback}>
+        <div className="relative h-full w-full snap-center bg-black" onClick={togglePlayback}>
             {video.type === 'video' ? (
-                <>
-                    <div className="relative w-full h-full">
-                        <video
-                            ref={videoRef}
-                            src={video.photoUrl}
-                            loop
-                            playsInline
-                            muted={!video.audioUrl} // Só desativa o mute se houver áudio separado
-                            className="w-full h-full object-cover bg-black"
-                            poster={video.thumbnailUrl || ''}
-                            onError={(e) => {
-                                console.error('Erro ao carregar vídeo:', e);
-                                console.error('URL do vídeo:', video.photoUrl);
-                                console.error('Tipo do vídeo:', video.type);
-                            }}
-                            onCanPlay={() => {
-                                console.log('Vídeo pronto para reprodução:', video.id);
-                                const videoElement = videoRef.current;
-                                if (videoElement) {
-                                    videoElement.play().catch(error => {
-                                        console.error('Erro ao reproduzir vídeo:', error);
-                                    });
-                                }
-                            }}
+                <div className="relative w-full h-full">
+                    <video
+                        ref={videoRef}
+                        src={video.photoUrl}
+                        loop
+                        playsInline
+                        muted={!video.audioUrl} // Só desativa o mute se houver áudio separado
+                        className="absolute inset-0 w-full h-full object-cover z-0"
+                        poster={video.thumbnailUrl || ''}
+                        onError={handleVideoError}
+                        onCanPlay={() => {
+                            // Tentar reproduzir quando o vídeo estiver pronto
+                            const playPromise = videoRef.current?.play();
+                            if (playPromise !== undefined) {
+                                playPromise.catch(error => {
+                                    console.warn('Reprodução automática bloqueada:', error);
+                                    setShowPlayIcon(true);
+                                });
+                            }
+                        }}
+                    />
+                    {video.audioUrl && (
+                        <audio 
+                            ref={audioRef} 
+                            src={video.audioUrl} 
+                            loop 
+                            onError={(e) => console.error('Erro ao carregar áudio:', e)}
                         />
-                        {video.audioUrl && (
-                            <audio 
-                                ref={audioRef} 
-                                src={video.audioUrl} 
-                                loop 
-                                onError={(e) => console.error('Erro ao carregar áudio:', e)}
-                            />
-                        )}
-                    </div>
-                </>
+                    )}
+                </div>
             ) : (
                 <img 
                     src={video.photoUrl} 
@@ -182,7 +212,7 @@ const VideoSlide: React.FC<VideoSlideProps> = ({ video, onViewProfile, onPhotoLi
                 {/* Left Side Info */}
                 <div className="flex-1 min-w-0 space-y-2">
                     <button onClick={(e) => { e.stopPropagation(); onViewProfile(video.user); }} className="font-bold text-lg">@{video.user.name}</button>
-                    <p className="text-sm">Descrição do vídeo aqui! #hashtag</p>
+                    <p className="text-sm whitespace-pre-line">{(video as any).description || (video as any).caption || 'Sem descrição'}</p>
                     <button onClick={handleViewMusicClick} className="flex items-center space-x-2">
                         <MusicNoteIcon className="w-4 h-4"/>
                         <p className="text-sm truncate">{video.musicTitle ? `${video.musicTitle} - ${video.musicArtist}` : `Som original - ${video.user.name}`}</p>
@@ -281,7 +311,9 @@ const VideoScreen: React.FC<VideoScreenProps> = ({ currentUser, onViewProfile, o
                         musicTitle: obra.musicTitle,
                         musicArtist: obra.musicArtist,
                         audioUrl: obra.audioUrl,
-                    }));
+                        description: (obra as any).description || '',  // Garantindo que description exista
+                        caption: (obra as any).caption || ''           // Garantindo que caption exista
+                    } as FeedPhoto)); // Forçando o tipo para incluir as propriedades opcionais
                 setFeed(userVideos);
             } else {
                 setFeed([]);

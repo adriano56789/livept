@@ -62,9 +62,14 @@ export interface Gift {
 export interface Obra {
   id: string;
   url: string;
-  // FIX: Add type and thumbnailUrl properties to align with FeedPhoto and EditProfileScreen usage.
   type: 'image' | 'video';
   thumbnailUrl?: string;
+  description?: string;
+  caption?: string;
+  musicId?: string;
+  musicTitle?: string;
+  musicArtist?: string;
+  audioUrl?: string;
 }
 
 export interface User {

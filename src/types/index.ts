@@ -15,7 +15,9 @@ export interface User {
   isVerified?: boolean;
   isFollowing?: boolean;
   isBlocked?: boolean;
+  followers?: string[];
   followersCount?: number;
+  following?: string[];
   followingCount?: number;
   fans?: number;
   level?: number;
@@ -26,6 +28,11 @@ export interface User {
   birthday?: string;
   location?: string;
   website?: string;
+  liveTitle?: string;
+  liveCategory?: string;
+  liveTags?: string[];
+  thumbnailUrl?: string;
+  viewerCount?: number;
   socialLinks?: {
     facebook?: string;
     twitter?: string;
