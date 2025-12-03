@@ -42,6 +42,13 @@ const generateVideoThumbnail = (videoUrl: string): Promise<string> => new Promis
 
 const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ isOpen, onClose, onPostComplete, addToast, currentUser, initialMusic }) => {
   const [description, setDescription] = useState('');
+
+  // Função para limpar o formulário
+  const resetForm = useCallback(() => {
+    setDescription('');
+    setMediaPreview(null);
+    setIsPosting(false);
+  }, []);
   const [isMusicModalOpen, setIsMusicModalOpen] = useState(false);
   const [selectedMusic, setSelectedMusic] = useState<MusicTrack | null>(initialMusic || null);
   const [isPosting, setIsPosting] = useState(false);
@@ -86,25 +93,52 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ isOpen, onClose, on
 
     let isCancelled = false;
     const getStream = async () => {
+      console.log('Iniciando configuração da câmera...');
       if (mediaStreamRef.current) {
+        console.log('Parando stream existente...');
         mediaStreamRef.current.getTracks().forEach(track => track.stop());
       }
       setIsStreamReady(false);
 
       try {
+        console.log('Solicitando acesso à câmera...');
         const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode },
-            audio: true 
+          video: { 
+            facingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: true 
         });
-        if (isCancelled) return stream.getTracks().forEach(t => t.stop());
+        
+        if (isCancelled) {
+          console.log('Componente desmontado, limpando...');
+          return stream.getTracks().forEach(t => t.stop());
+        }
 
+        console.log('Stream obtido com sucesso:', stream);
         mediaStreamRef.current = stream;
 
         if (videoRef.current) {
+          console.log('Atribuindo stream ao elemento de vídeo...');
           videoRef.current.srcObject = stream;
-          videoRef.current.oncanplay = () => {
-            if (!isCancelled) setIsStreamReady(true);
-          };
+          return new Promise<void>((resolve) => {
+            if (!videoRef.current) return resolve();
+            
+            videoRef.current.onloadedmetadata = () => {
+              console.log('Metadados do vídeo carregados');
+              if (!isCancelled) {
+                console.log('Vídeo pronto para reprodução');
+                setIsStreamReady(true);
+              }
+              resolve();
+            };
+            
+            videoRef.current.onerror = (e) => {
+              console.error('Erro ao carregar vídeo:', e);
+              resolve();
+            };
+          });
         }
       } catch (err) {
         if (!isCancelled) {
@@ -180,30 +214,45 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ isOpen, onClose, on
     setRecordingTime(0);
     recordedChunksRef.current = [];
     
-    mediaRecorderRef.current = new MediaRecorder(mediaStreamRef.current, { mimeType: 'video/webm' });
+    // Criar um novo stream apenas para gravação
+    const streamForRecording = mediaStreamRef.current.clone();
+    
+    mediaRecorderRef.current = new MediaRecorder(streamForRecording, { 
+      mimeType: 'video/webm',
+      audioBitsPerSecond: 128000,
+      videoBitsPerSecond: 2500000
+    });
+    
     mediaRecorderRef.current.ondataavailable = (event) => {
       if (event.data.size > 0) {
         recordedChunksRef.current.push(event.data);
       }
     };
+    
     mediaRecorderRef.current.onstop = () => {
       const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
       const url = URL.createObjectURL(blob);
       setMediaPreview({ url, type: 'video', blob });
+      
+      // Parar todas as tracks do stream de gravação
+      streamForRecording.getTracks().forEach(track => track.stop());
     };
-    mediaRecorderRef.current.start();
+    
+    mediaRecorderRef.current.start(100); // Coletar dados a cada 100ms
 
     if (audioRef.current && selectedMusic) {
-      audioRef.current.play().catch(e => console.error("Audio play failed:", e));
+      audioRef.current.play().catch(e => console.error("Falha ao reproduzir áudio:", e));
     }
   };
 
   const stopRecording = () => {
-    mediaRecorderRef.current?.stop();
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+    }
     setIsRecording(false);
     if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
     }
   };
 
@@ -222,37 +271,46 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ isOpen, onClose, on
 
   const handlePost = async () => {
     if (isPosting || !mediaPreview) return;
+    
+    // Validar descrição
+    if (!description.trim()) {
+      addToast(ToastType.Info, "Por favor, adicione uma descrição ao seu post.");
+      return;
+    }
+    
     setIsPosting(true);
 
     try {
-        const mediaDataUrl = await blobToBase64(mediaPreview.blob);
-        let thumbnailDataUrl;
-        if (mediaPreview.type === 'video') {
-            thumbnailDataUrl = await generateVideoThumbnail(mediaPreview.url);
-        }
-        
-        const payload = {
-            mediaData: mediaDataUrl,
-            thumbnailData: thumbnailDataUrl,
-            type: mediaPreview.type,
-            description: description,
-            musicId: selectedMusic?.id,
-            musicTitle: selectedMusic?.title,
-            musicArtist: selectedMusic?.artist,
-            audioUrl: selectedMusic?.url,
-        };
+      const mediaDataUrl = await blobToBase64(mediaPreview.blob);
+      let thumbnailDataUrl;
+      if (mediaPreview.type === 'video') {
+        thumbnailDataUrl = await generateVideoThumbnail(mediaPreview.url);
+      }
+      
+      const payload = {
+        mediaData: mediaDataUrl,
+        thumbnailData: thumbnailDataUrl,
+        type: mediaPreview.type,
+        description: description.trim(), // Garantir que a descrição está incluída
+        musicId: selectedMusic?.id,
+        musicTitle: selectedMusic?.title,
+        musicArtist: selectedMusic?.artist,
+        audioUrl: selectedMusic?.url,
+        caption: description.trim(), // Adicionando também como caption para garantir compatibilidade
+      };
 
-        const { success, user } = await api.createFeedPost(payload);
-        if (success && user) {
-            addToast(ToastType.Success, "Postado com sucesso!");
-            onPostComplete(user);
-        } else {
-            throw new Error("Falha ao postar.");
-        }
+      const { success, user } = await api.createFeedPost(payload);
+      if (success && user) {
+        addToast(ToastType.Success, "Postado com sucesso!");
+        onPostComplete(user);
+        resetForm();
+        onClose();
+      } else {
+        throw new Error("Falha ao postar.");
+      }
     } catch (error) {
-        addToast(ToastType.Error, (error as Error).message || "Ocorreu um erro ao postar.");
-    } finally {
-        setIsPosting(false);
+      addToast(ToastType.Error, (error as Error).message || "Ocorreu um erro ao postar.");
+      setIsPosting(false);
     }
   };
   
@@ -273,7 +331,12 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ isOpen, onClose, on
         isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
     >
-      <div className="relative flex-1 bg-black">
+      <div className="relative flex-1 bg-black overflow-hidden">
+        {!isStreamReady && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
+            <div className="text-white text-lg">Carregando câmera...</div>
+          </div>
+        )}
         {mediaPreview ? (
           // Preview UI
           <>
@@ -282,14 +345,48 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ isOpen, onClose, on
             ) : (
               <video src={mediaPreview.url} autoPlay loop className="w-full h-full object-cover" />
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent p-4 flex flex-col justify-between">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-4 flex flex-col justify-between">
               <header className="flex justify-start">
-                <button onClick={() => setMediaPreview(null)} className="w-8 h-8 bg-black/40 rounded-full flex items-center justify-center text-white"><BackIcon className="w-5 h-5" /></button>
+                <button 
+                  onClick={() => {
+                    setMediaPreview(null);
+                    resetForm();
+                  }} 
+                  className="w-10 h-10 bg-black/60 rounded-full flex items-center justify-center text-white hover:bg-black/80 transition-colors"
+                >
+                  <BackIcon className="w-6 h-6" />
+                </button>
               </header>
-              <footer>
-                <input type="text" placeholder="Descreva sua postagem..." value={description} onChange={e => setDescription(e.target.value)} className="w-full bg-black/50 p-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-1 focus:ring-purple-500 mb-4" />
-                <button onClick={handlePost} disabled={isPosting} className="w-full bg-pink-600 font-bold py-4 rounded-lg disabled:bg-gray-600">
-                  {isPosting ? "Postando..." : "Postar"}
+              <footer className="space-y-4">
+                <div className="relative">
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Adicione uma descrição..."
+                    className="w-full bg-black/60 backdrop-blur-md text-white p-4 rounded-xl border border-white/10 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent placeholder-gray-300 resize-none"
+                    rows={3}
+                    maxLength={2200}
+                  />
+                  <div className="absolute bottom-2 right-2 text-xs text-gray-300 bg-black/50 px-2 py-1 rounded-full">
+                    {description.length}/2200
+                  </div>
+                </div>
+                <button 
+                  onClick={handlePost} 
+                  disabled={isPosting} 
+                  className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-70 disabled:transform-none"
+                >
+                  {isPosting ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Postando...
+                    </span>
+                  ) : (
+                    <span>Compartilhar</span>
+                  )}
                 </button>
               </footer>
             </div>
@@ -297,7 +394,22 @@ const CreatePostScreen: React.FC<CreatePostScreenProps> = ({ isOpen, onClose, on
         ) : (
           // Capture UI
           <>
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+            <div className="relative w-full h-full">
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted 
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{ transform: 'scaleX(-1)' }}
+              />
+              {isRecording && (
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center">
+                  <div className="w-2 h-2 bg-white rounded-full mr-2"></div>
+                  {formatTime(recordingTime)}
+                </div>
+              )}
+            </div>
             <header className="absolute top-0 left-0 right-0 p-4 flex justify-between z-20">
               <button onClick={onClose} className="w-8 h-8 bg-black/40 rounded-full flex items-center justify-center text-white"><CloseIcon className="w-5 h-5" /></button>
               <button onClick={handleFlipCamera} className="w-8 h-8 bg-black/40 rounded-full flex items-center justify-center text-white"><FlipCameraIcon className="w-5 h-5" /></button>

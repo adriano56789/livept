@@ -130,16 +130,39 @@ const VideoSlide: React.FC<VideoSlideProps> = ({ video, onViewProfile, onPhotoLi
         <div className="relative h-full w-full snap-center" onClick={togglePlayback}>
             {video.type === 'video' ? (
                 <>
-                    <video
-                        ref={videoRef}
-                        src={video.photoUrl}
-                        loop
-                        playsInline
-                        muted // Mute the video to play separate audio track
-                        className="w-full h-full object-cover bg-black"
-                        poster={video.thumbnailUrl || ''}
-                    />
-                    {video.audioUrl && <audio ref={audioRef} src={video.audioUrl} loop />}
+                    <div className="relative w-full h-full">
+                        <video
+                            ref={videoRef}
+                            src={video.photoUrl}
+                            loop
+                            playsInline
+                            muted={!video.audioUrl} // Só desativa o mute se houver áudio separado
+                            className="w-full h-full object-cover bg-black"
+                            poster={video.thumbnailUrl || ''}
+                            onError={(e) => {
+                                console.error('Erro ao carregar vídeo:', e);
+                                console.error('URL do vídeo:', video.photoUrl);
+                                console.error('Tipo do vídeo:', video.type);
+                            }}
+                            onCanPlay={() => {
+                                console.log('Vídeo pronto para reprodução:', video.id);
+                                const videoElement = videoRef.current;
+                                if (videoElement) {
+                                    videoElement.play().catch(error => {
+                                        console.error('Erro ao reproduzir vídeo:', error);
+                                    });
+                                }
+                            }}
+                        />
+                        {video.audioUrl && (
+                            <audio 
+                                ref={audioRef} 
+                                src={video.audioUrl} 
+                                loop 
+                                onError={(e) => console.error('Erro ao carregar áudio:', e)}
+                            />
+                        )}
+                    </div>
                 </>
             ) : (
                 <img 
@@ -223,33 +246,54 @@ const VideoScreen: React.FC<VideoScreenProps> = ({ currentUser, onViewProfile, o
     const observer = useRef<IntersectionObserver | null>(null);
     const [commentModalState, setCommentModalState] = useState<{ isOpen: boolean; photo: FeedPhoto | null }>({ isOpen: false, photo: null });
 
-    useEffect(() => {
+    const loadVideos = useCallback(async () => {
         setIsLoading(true);
-        if (!currentUser?.obras) {
-            setFeed([]);
+        try {
+            // Busca o feed de vídeos da API
+            const videos = await api.getPhotoFeed();
+            console.log('Vídeos recebidos da API:', videos);
+            
+            // Filtra apenas os vídeos (não fotos)
+            const videoFeed = videos.filter(photo => {
+                const isVideo = photo.type === 'video';
+                console.log(`Vídeo ID: ${photo.id}, Tipo: ${photo.type}, URL: ${photo.photoUrl}, Thumbnail: ${photo.thumbnailUrl}`);
+                return isVideo;
+            });
+            
+            console.log('Vídeos filtrados:', videoFeed);
+            setFeed(videoFeed);
+        } catch (error) {
+            console.error('Erro ao carregar vídeos:', error);
+            // Se houver erro, tenta carregar os vídeos do usuário como fallback
+            if (currentUser?.obras) {
+                const userVideos = currentUser.obras
+                    .filter(obra => obra.type === 'video')
+                    .map(obra => ({
+                        id: obra.id,
+                        photoUrl: obra.url,
+                        type: obra.type as 'video',
+                        thumbnailUrl: obra.thumbnailUrl,
+                        user: currentUser,
+                        likes: currentUser.curtidas?.filter(l => l.obra.id === obra.id).length || 0,
+                        isLiked: currentUser.curtidas?.some(l => l.obra.id === obra.id) || false,
+                        commentCount: 0,
+                        musicId: obra.musicId,
+                        musicTitle: obra.musicTitle,
+                        musicArtist: obra.musicArtist,
+                        audioUrl: obra.audioUrl,
+                    }));
+                setFeed(userVideos);
+            } else {
+                setFeed([]);
+            }
+        } finally {
             setIsLoading(false);
-            return;
         }
-        
-        // Map currentUser.obras to FeedPhoto[] to ensure only the user's content is shown.
-        const userPhotos: FeedPhoto[] = (currentUser.obras || []).map(obra => ({
-            id: obra.id,
-            photoUrl: obra.url,
-            type: obra.type,
-            thumbnailUrl: obra.thumbnailUrl,
-            user: currentUser,
-            likes: currentUser.curtidas?.filter(l => l.obra.id === obra.id).length || 0,
-            isLiked: currentUser.curtidas?.some(l => l.obra.id === obra.id) || false,
-            commentCount: 0, // Placeholder, would need a proper count from backend
-            musicId: obra.musicId,
-            musicTitle: obra.musicTitle,
-            musicArtist: obra.musicArtist,
-            audioUrl: obra.audioUrl,
-        })).reverse(); // Show newest first
+    }, [currentUser]);
 
-        setFeed(userPhotos);
-        setIsLoading(false);
-    }, [currentUser, currentUser.obras, lastPhotoLikeUpdate]);
+    useEffect(() => {
+        loadVideos();
+    }, [loadVideos, lastPhotoLikeUpdate]);
     
     const handleIntersection = (entries: IntersectionObserverEntry[]) => {
         entries.forEach(entry => {

@@ -1189,7 +1189,19 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             return { status: 200, data: feedWithLikes };
         }
         if (id === 'posts' && method === 'POST') {
-            const postData = body;
+            interface PostData {
+                mediaData: string;
+                thumbnailData?: string;
+                type: 'image' | 'video';
+                description?: string;
+                caption?: string;
+                musicId?: string;
+                musicTitle?: string;
+                musicArtist?: string;
+                audioUrl?: string;
+            }
+            
+            const postData: PostData = body as PostData;
             const currentUser = db.users.get(CURRENT_USER_ID);
             if (!currentUser) {
                 return { status: 401, error: "User not authenticated" };
@@ -1211,7 +1223,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             }
             currentUser.obras.unshift(newObra);
 
-            const newFeedPhoto: FeedPhoto = {
+            const newFeedPhoto = {
                 id: `pf_${Date.now()}`,
                 photoUrl: postData.mediaData,
                 type: postData.type,
@@ -1223,8 +1235,10 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 musicId: postData.musicId,
                 musicTitle: postData.musicTitle,
                 musicArtist: postData.musicArtist,
-                audioUrl: postData.audioUrl
-            };
+                audioUrl: postData.audioUrl,
+                description: postData.description || postData.caption || '', // Incluindo a descrição
+                caption: postData.caption || postData.description || '' // Mantendo compatibilidade com caption também
+            } as FeedPhoto;
             db.photoFeed.unshift(newFeedPhoto);
             
             db.users.set(CURRENT_USER_ID, currentUser);

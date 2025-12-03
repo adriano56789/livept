@@ -240,12 +240,18 @@ export interface PurchaseRecord {
 export interface FeedPhoto {
   id: string;
   photoUrl: string; // Will hold image OR video url
-  // FIX: Add type and thumbnailUrl properties.
   type: 'image' | 'video';
   thumbnailUrl?: string;
   user: User;
   likes: number;
   isLiked: boolean;
+  commentCount?: number;
+  description?: string;
+  caption?: string;
+  musicId?: string;
+  musicTitle?: string;
+  musicArtist?: string;
+  audioUrl?: string;
 }
 
 export interface GoogleAccount {

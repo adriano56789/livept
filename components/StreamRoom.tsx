@@ -129,32 +129,19 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         // Garante que o giftWithId tenha um id obrigatório
         const giftWithId = { ...giftData, id: giftId } as GiftPayload & { id: number };
         
-        // Define uma prioridade fixa, já que só queremos uma notificação por vez
-        const priority = 1;
-        // Define a duração da notificação para 10 segundos
-        const duration = 10 * 1000; // 10 segundos em milissegundos
-        
-        // Solicita permissão ao gerenciador de animações
-        const { id, canStart } = animationManager.requestAnimation(priority, duration);
+        // ID único para a animação
+        const id = `gift-${giftId}`;
+        // Sempre permitir que a animação comece
+        const ref = { canStart: true };
         
         // Armazena a referência da animação
-        const ref = { canStart, checkInterval: null as NodeJS.Timeout | null };
         animationRefs.current[id] = ref;
         
         // Sempre substitui a notificação anterior pela nova
         setActiveGiftAnimations(prev => [giftWithId]);
         
-        // Limpa qualquer intervalo anterior para evitar vazamentos de memória
-        if (ref.checkInterval) {
-            clearInterval(ref.checkInterval);
-            ref.checkInterval = null;
-        }
-        
         // Retorna função de limpeza
         return () => {
-            if (ref.checkInterval) {
-                clearInterval(ref.checkInterval);
-            }
             delete animationRefs.current[id];
         };
     }, []);
@@ -248,12 +235,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     };
     
     const handleGiftAnimationEnd = useCallback((giftId: number) => {
-        setActiveGiftAnimations(prev => {
-            const updated = prev.filter(gift => gift.id !== giftId);
-            // Notifica o gerenciador que a animação terminou
-            animationManager.endAnimation(giftId);
-            return updated;
-        });
+        // Não faz nada, pois não queremos remover a notificação
+        // Ela será substituída quando uma nova notificação for recebida
     }, []);
 
     useEffect(() => {
@@ -283,26 +266,46 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         setCurrentFullscreenGift(null);
     };
 
-    useEffect(() => {
-        const handleNewMessage = async (message: any) => {
-             if (message.roomId === streamer.id) {
-                 if (message.user !== currentUser.name && message.type === 'chat' && typeof message.message === 'string') {
-                    try {
-                        const translationResponse = await api.translate(message.message, language);
-                        const messageWithTranslation = { ...message, translatedText: translationResponse.translatedText };
-                        setMessages(prev => [...prev, messageWithTranslation]);
-                    } catch (error) {
-                        console.error("Failed to translate message:", error);
-                        setMessages(prev => [...prev, message]); // Add original on failure
-                    }
-                } else {
-                     setMessages(prev => [...prev, message]);
+    const handleNewMessage = useCallback(async (message: any) => {
+        if (message.roomId === streamer.id) {
+            if (message.user !== currentUser.name && message.type === 'chat' && typeof message.message === 'string') {
+                try {
+                    const translationResponse = await api.translate(message.message, language);
+                    const messageWithTranslation = { ...message, translatedText: translationResponse.translatedText };
+                    setMessages(prev => [...prev, messageWithTranslation]);
+                } catch (error) {
+                    console.error("Failed to translate message:", error);
+                    setMessages(prev => [...prev, message]); // Add original on failure
                 }
+            } else {
+                setMessages(prev => [...prev, message]);
             }
-        };
-        webSocketManager.on('newStreamMessage', handleNewMessage);
-        webSocketManager.on('newStreamGift', handleNewGift);
+        }
+    }, [streamer.id, currentUser.name, language]);
 
+    useEffect(() => {
+        const handleNewMessageEffect = () => {
+            webSocketManager.on('newStreamMessage', handleNewMessage);
+        };
+        handleNewMessageEffect();
+
+        return () => {
+            webSocketManager.off('newStreamMessage', handleNewMessage);
+        };
+    }, [handleNewMessage]);
+
+    useEffect(() => {
+        const handleNewGiftEffect = () => {
+            webSocketManager.on('newStreamGift', handleNewGift);
+        };
+        handleNewGiftEffect();
+
+        return () => {
+            webSocketManager.off('newStreamGift', handleNewGift);
+        };
+    }, [handleNewGift]);
+
+    useEffect(() => {
         const handleFollowUpdate = (payload: { follower: User, followed: User, isUnfollow: boolean }) => {
             if (payload.isUnfollow) return; 
 
@@ -316,7 +319,13 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         };
 
         webSocketManager.on('followUpdate', handleFollowUpdate);
-        
+
+        return () => {
+            webSocketManager.off('followUpdate', handleFollowUpdate);
+        };
+    }, [currentUser.id]);
+
+    useEffect(() => {
         const handleAutoInviteStateUpdate = (payload: { roomId: string; isEnabled: boolean }) => {
             if (payload.roomId === streamer.id) {
                 setIsAutoPrivateInviteEnabled(payload.isEnabled);
@@ -324,6 +333,12 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         };
         webSocketManager.on('autoInviteStateUpdate', handleAutoInviteStateUpdate);
 
+        return () => {
+            webSocketManager.off('autoInviteStateUpdate', handleAutoInviteStateUpdate);
+        };
+    }, [streamer.id]);
+
+    useEffect(() => {
         const handleOnlineUsersUpdate = (data: { roomId: string; users: (User & { value: number })[] }) => {
             if (data.roomId === streamer.id) {
                 const newUsers = data.users;
@@ -352,61 +367,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         };
         webSocketManager.on('onlineUsersUpdate', handleOnlineUsersUpdate);
 
-
         return () => {
-            webSocketManager.off('newStreamMessage', handleNewMessage);
-            webSocketManager.off('newStreamGift', handleNewGift);
-            webSocketManager.off('followUpdate', handleFollowUpdate);
-            webSocketManager.off('autoInviteStateUpdate', handleAutoInviteStateUpdate);
             webSocketManager.off('onlineUsersUpdate', handleOnlineUsersUpdate);
         };
-    }, [streamer.id, streamer.hostId, updateLiveSession, currentUser, language, t, onOpenFriendRequests, liveSession, refreshStreamRoomData]);
-
-    const postGiftChatMessage = (payload: GiftPayload) => {
-        const { fromUser, gift, toUser, quantity } = payload;
-        
-        const totalValue = (gift.price || 0) * quantity;
-        const giftIcon = gift.component ? 
-            React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block ml-1" }) : 
-            <span className="ml-1">{gift.icon}</span>;
-
-        const giftMessage: ChatMessageType = {
-            id: Date.now() + Math.random(),
-            type: 'chat',
-            user: fromUser.name,
-            level: fromUser.level,
-            message: (
-                <span className="inline-flex items-center">
-                    📦 <span className="font-semibold">{fromUser.name}</span> enviou {giftIcon} para <span className="font-semibold">{toUser.name}</span> — {totalValue} moedas.
-                </span>
-            ),
-            avatar: fromUser.avatarUrl,
-            activeFrameId: fromUser.activeFrameId,
-            frameExpiration: fromUser.frameExpiration,
-            fanClub: fromUser.fanClub,
-        };
-        setMessages(prev => [...prev, giftMessage]);
-    };
-
-    const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
-        e.stopPropagation();
-        if (chatInput.trim() === '' || !currentUser) return;
-        const messagePayload: ChatMessageType = {
-            id: Date.now(),
-            type: 'chat',
-            user: currentUser.name,
-            level: currentUser.level,
-            message: chatInput.trim(),
-            avatar: currentUser.avatarUrl,
-            gender: currentUser.gender,
-            age: currentUser.age,
-            activeFrameId: currentUser.activeFrameId,
-            frameExpiration: currentUser.frameExpiration,
-            fanClub: currentUser.fanClub,
-        };
-        setMessages(prev => [...prev, messagePayload]);
-        setChatInput('');
-    };
+    }, [currentUser.id, streamer.id, streamer.hostId, updateLiveSession]);
 
     const handleTogglePrivacy = async () => {
         if (!isBroadcaster) return;
@@ -511,6 +475,50 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         if (!user.user || !user.avatar) return;
         const userProfile = constructUserFromMessage(user);
         onViewProfile(userProfile);
+    };
+
+    const postGiftChatMessage = (payload: GiftPayload) => {
+        const { fromUser, gift, toUser, quantity } = payload;
+        
+        const totalValue = (gift.price || 0) * quantity;
+        const giftIcon = gift.component ? 
+            React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block ml-1" }) : 
+            <span className="ml-1">{gift.icon}</span>;
+
+        // Mensagem de notificação para os outros usuários
+        const giftNotification: ChatMessageType = {
+            id: Date.now() + Math.random(),
+            type: 'chat',
+            user: fromUser.name,
+            level: fromUser.level,
+            message: (
+                <span className="inline-flex items-center">
+                    🎁 <span className="font-semibold">{fromUser.name}</span> enviou {giftIcon} para <span className="font-semibold">{toUser.name}</span> — {totalValue} moedas.
+                </span>
+            ),
+            avatar: fromUser.avatarUrl,
+            activeFrameId: fromUser.activeFrameId,
+            frameExpiration: fromUser.frameExpiration,
+            fanClub: fromUser.fanClub,
+        };
+
+        // Mensagem de confirmação apenas para o remetente
+        const confirmationMessage: ChatMessageType = {
+            id: Date.now() + Math.random() + 1, // ID único diferente
+            type: 'chat',
+            user: 'Sistema',
+            level: 0,
+            message: (
+                <span className="inline-flex items-center text-green-400">
+                    ✓ Você enviou {quantity > 1 ? `${quantity}x` : 'um'} {giftIcon} para <span className="font-semibold">{toUser.name}</span> — {totalValue} moedas.
+                </span>
+            ),
+            avatar: '',
+            isModerator: true
+        };
+
+        // Adiciona as mensagens ao chat
+        setMessages(prev => [...prev, giftNotification, confirmationMessage]);
     };
 
     const handleSendGift = async (gift: Gift, quantity: number): Promise<User | null> => {
@@ -644,16 +652,54 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const handleChatInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
         setChatInput(value);
-
-        const lastWord = value.split(' ').pop() || '';
-        if (lastWord.startsWith('@')) {
-            const query = lastWord.substring(1).toLowerCase();
+        
+        // Verifica se o usuário está digitando @ para mencionar alguém
+        const atIndex = value.lastIndexOf('@');
+        if (atIndex !== -1) {
+            const query = value.substring(atIndex + 1).toLowerCase();
             setMentionQuery(query);
-            setShowMentionSuggestions(true);
+            setShowMentionSuggestions(query.length > 0);
         } else {
             setShowMentionSuggestions(false);
-            setMentionQuery('');
         }
+    };
+
+    const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
+        e.preventDefault();
+        if (!chatInput.trim()) return;
+        
+        const message: ChatMessageType = {
+            id: Date.now(),
+            type: 'chat',
+            user: currentUser.name,
+            level: currentUser.level,
+            message: chatInput,
+            avatar: currentUser.avatarUrl,
+            gender: currentUser.gender,
+            age: currentUser.age,
+            activeFrameId: currentUser.activeFrameId || undefined,
+            frameExpiration: currentUser.frameExpiration || undefined,
+            fanClub: currentUser.fanClub,
+            fullUser: currentUser
+        };
+
+        // Envia a mensagem via WebSocket
+        webSocketManager.emit('sendStreamMessage', {
+            roomId: streamer.id,
+            message: chatInput,
+            user: currentUser.name,
+            level: currentUser.level,
+            avatar: currentUser.avatarUrl,
+            gender: currentUser.gender,
+            age: currentUser.age,
+            activeFrameId: currentUser.activeFrameId,
+            frameExpiration: currentUser.frameExpiration,
+            fanClub: currentUser.fanClub,
+        });
+
+        // Adiciona a mensagem ao chat localmente
+        setMessages(prev => [...prev, message]);
+        setChatInput('');
     };
 
     const handleMentionSelect = (username: string) => {
@@ -873,7 +919,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                                 placeholder={t('diga oi')} 
                                 value={chatInput}
                                 onChange={handleChatInputChange}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleNewMessage(e)}
                                 onFocus={() => setIsChatInputFocused(true)}
                                 onBlur={() => setTimeout(() => setIsChatInputFocused(false), 200)}
                                 className="flex-grow bg-transparent px-4 py-2.5 text-white placeholder-gray-400 focus:outline-none" 
