@@ -287,7 +287,7 @@ const AppContent: React.FC = () => {
       api.getAllUsers().then(data => setAllUsers(data || [])).catch(err => showError(err as Error, 'usuários'));
       api.getGifts().then(data => setAllGifts(data || [])).catch(err => showError(err as Error, 'presentes'));
       api.getStreamHistory().then(data => setStreamHistory(data || [])).catch(err => console.error("Failed to fetch stream history:", err));
-      api.getPurchaseHistory(currentUser.id).then(data => setPurchaseHistory(data || [])).catch(err => console.error("Failed to fetch purchase history:", err));
+      api.getPurchaseHistory(currentUser.id, currentUser.id).then(data => setPurchaseHistory(data || [])).catch(err => console.error("Failed to fetch purchase history:", err));
 
       api.getFollowingUsers(currentUser.id).then(data => setFollowingUsers(data || [])).catch(err => showError(err as Error, 'seguidores'));
       api.getFansUsers(currentUser.id).then(data => setFans(data || [])).catch(err => showError(err as Error, 'fãs'));

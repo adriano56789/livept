@@ -800,30 +800,59 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
         // Add fee to platform earnings
         db.platform_earnings += feeFull;
 
-        const transaction: PurchaseRecord = {
+        // Create withdrawal transaction for the streamer
+        const withdrawalTransaction: PurchaseRecord = {
           id: `withdraw_${Date.now()}`,
           userId: user.id,
           type: 'withdraw_earnings',
           description: `Saque para ${user.withdrawal_method.method}`,
           amountBRL: truncateBRL(netBRLFull),
           amountCoins: amount,
-          status: 'Concluído', // Mark as completed immediately
-          timestamp: new Date().toISOString()
+          status: 'Concluído',
+          timestamp: new Date().toISOString(),
+          isAdminTransaction: false
         };
-        db.purchases.unshift(transaction);
+
+        // Create admin fee transaction (hidden from regular users)
+        const adminTransaction: PurchaseRecord = {
+          id: `admin_fee_${Date.now()}`,
+          userId: CURRENT_USER_ID,
+          type: 'admin_fee',
+          description: `Taxa de saque de ${user.name}`,
+          amountBRL: truncateBRL(feeFull),
+          amountCoins: 0,
+          status: 'Concluído',
+          timestamp: new Date().toISOString(),
+          isAdminTransaction: true,
+          relatedTransactionId: withdrawalTransaction.id
+        };
+
+        // Add transactions to the database
+        db.purchases.unshift(withdrawalTransaction);
+        db.purchases.unshift(adminTransaction);
+        
+        // Update admin's wallet (hidden from regular users)
+        const adminUser = db.users.get(CURRENT_USER_ID);
+        if (adminUser) {
+            adminUser.adminEarnings = (adminUser.adminEarnings || 0) + feeFull;
+            db.users.set(CURRENT_USER_ID, adminUser);
+        }
+        
         db.users.set(userId, user);
         saveDb();
 
-        // Broadcast updates immediately
+        // Broadcast updates
         webSocketServerInstance.broadcastUserUpdate(user);
-        webSocketServerInstance.broadcastTransactionUpdate(transaction);
+        webSocketServerInstance.broadcastTransactionUpdate(withdrawalTransaction);
         
-        // If the platform owner is online, send them an update with the new earnings total
-        const adminUser = db.users.get(CURRENT_USER_ID);
+        // Only broadcast admin transaction to admin user
         if (adminUser) {
-            const updatedAdmin = { ...adminUser, platformEarnings: db.platform_earnings };
-            // This will push an update specifically to the admin user client
-            webSocketServerInstance.broadcastUserUpdate(updatedAdmin);
+            webSocketServerInstance.broadcastTransactionUpdate(adminTransaction);
+            webSocketServerInstance.broadcastUserUpdate({
+                ...adminUser,
+                platformEarnings: db.platform_earnings,
+                adminEarnings: adminUser.adminEarnings
+            });
         }
 
         // Return success with the updated user
@@ -1426,7 +1455,21 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
 
     if (entity === 'purchases' && id === 'history' && subEntity && method === 'GET') {
       const userId = subEntity;
-      const userPurchases = db.purchases.filter(p => p.userId === userId);
+      const requestingUserId = body.requestingUserId; // ID do usuário que está fazendo a requisição
+      
+      // Se for o admin, retorna todas as transações (incluindo as administrativas)
+      if (requestingUserId === CURRENT_USER_ID) {
+        const allTransactions = db.purchases.filter(p => 
+          p.userId === userId || 
+          (p.isAdminTransaction && p.userId === CURRENT_USER_ID)
+        );
+        return { status: 200, data: allTransactions };
+      }
+      
+      // Para usuários comuns, retorna apenas as transações não administrativas
+      const userPurchases = db.purchases.filter(p => 
+        p.userId === userId && !p.isAdminTransaction
+      );
       return { status: 200, data: userPurchases };
     }
 

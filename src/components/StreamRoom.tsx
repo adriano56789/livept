@@ -84,7 +84,7 @@ interface StreamRoomProps {
 }
 
 const FollowChatMessage: React.FC<{ follower: string; followed: string }> = ({ follower, followed }) => {
-    const { t } = useTranslation();
+    const { t } = useTranslation() as { t: (key: string, options?: Record<string, string | number>) => string, language: string };
     return (
         <div className="bg-purple-500/30 rounded-full p-1.5 px-3 flex items-center self-start text-xs shadow-md">
             <span className="text-purple-300 font-bold">{follower}</span>
@@ -95,7 +95,7 @@ const FollowChatMessage: React.FC<{ follower: string; followed: string }> = ({ f
 };
 
 const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, onLeaveStreamView, onStartPKBattle, onViewProfile, currentUser, onOpenWallet, onFollowUser, onOpenPrivateChat, onOpenPrivateInviteModal, setActiveScreen, onStartChatWithStreamer, onOpenPKTimerSettings, onOpenFans, onOpenFriendRequests, gifts, receivedGifts, updateUser, liveSession, updateLiveSession, logLiveEvent, onStreamUpdate, refreshStreamRoomData, addToast, followingUsers, streamers, onSelectStream, onOpenVIPCenter, onOpenFanClubMembers }) => {
-    const { t, language } = useTranslation();
+    const { t, language } = useTranslation() as { t: (key: string, options?: Record<string, string | number>) => string, language: string };
     const [isUiVisible, setIsUiVisible] = useState(true);
     const [lastTap, setLastTap] = useState(0);
     const [isToolsOpen, setIsToolsOpen] = useState(false);
@@ -117,7 +117,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [onlineUsers, setOnlineUsers] = useState<(User & { value: number })[]>([]);
     const previousOnlineUsersRef = useRef<(User & { value: number })[]>([]);
 
-    const [bannerGifts, setBannerGifts] = useState<(GiftPayload & { id: number })[]>([]);
+    const [bannerGifts, setBannerGifts] = useState<(GiftPayload & { id: number | string })[]>([]);
     const nextGiftId = useRef(0);
     const [fullscreenGiftQueue, setFullscreenGiftQueue] = useState<GiftPayload[]>([]);
     const [currentFullscreenGift, setCurrentFullscreenGift] = useState<GiftPayload | null>(null);
@@ -242,7 +242,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         const { fromUser, gift, toUser, quantity } = payload;
 
         const messageKey = quantity > 1 ? 'streamRoom.sentMultipleGiftsMessage' : 'streamRoom.sentGiftMessage';
-        const messageOptions = { quantity, giftName: gift.name, receiverName: toUser.name };
+        const messageOptions = { 
+            quantity: String(quantity), 
+            giftName: String(gift.name), 
+            receiverName: String(toUser.name) 
+        };
 
         const giftMessage: ChatMessageType = {
             id: Date.now() + Math.random(),
@@ -251,7 +255,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             level: fromUser.level,
             message: (
                 <span className="inline-flex items-center">
-                    {t(messageKey, messageOptions)}
+                    {t(messageKey, messageOptions as Record<string, string | number>)}
                     {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block ml-1.5" }) : <span className="ml-1.5">{gift.icon}</span>}
                 </span>
             ),
@@ -263,7 +267,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         setMessages(prev => [...prev, giftMessage]);
     };
 
-    const handleBannerAnimationEnd = (id: number) => {
+    const handleBannerAnimationEnd = (id: number | string) => {
         setBannerGifts(prev => prev.filter(g => g.id !== id));
     };
 
@@ -693,7 +697,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         >
             {/* Stream Video/Image */}
             <img
-                src={streamer.cover || streamerUser.coverUrl}
+                src={String(streamer.cover || streamerUser.coverUrl || '')}
                 alt={streamer.name}
                 className="absolute inset-0 w-full h-full object-cover"
             />

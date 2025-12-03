@@ -15,12 +15,12 @@ export interface GiftPayload {
     gift: Gift;
     quantity: number;
     roomId: string;
-    id?: number; // Add optional id for keying
+    id?: number | string; // Add optional id for keying
 }
 
 interface GiftAnimationOverlayProps {
-    giftPayload: GiftPayload & { id: number };
-    onAnimationEnd: (id: number) => void;
+    giftPayload: GiftPayload & { id: number | string };
+    onAnimationEnd: (id: number | string) => void;
 }
 
 const GiftAnimationOverlay: React.FC<GiftAnimationOverlayProps> = ({ giftPayload, onAnimationEnd }) => {

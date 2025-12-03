@@ -1,5 +1,6 @@
 
 import * as database from './database';
+import * as api from './api';
 import { Message, User, Gift, Streamer, EligibleUser, PurchaseRecord } from '../types';
 
 // Safe database accessor function
@@ -101,6 +102,26 @@ class SimulatedWebSocketServer {
             userSocket.onMessage(data);
             console.log(`[WS Server] Sent direct message to ${userId}:`, data);
         }
+    }
+
+    /**
+     * Envia uma mensagem para todos os clientes conectados
+     * @param event Nome do evento
+     * @param data Dados a serem enviados
+     */
+    public broadcast(event: string, data: any) {
+        console.log(`[WS Server] Broadcasting '${event}' to all clients`);
+        this.connections.forEach((client, userId) => {
+            try {
+                client.onMessage({
+                    type: event,
+                    payload: data
+                });
+                console.log(`[WS Server] Broadcast sent to user ${userId}`);
+            } catch (error) {
+                console.error(`[WS Server] Error sending broadcast to user ${userId}:`, error);
+            }
+        });
     }
 
     public broadcastNewMessageToChat(chatKey: string, message: Message, tempId?: string) {
@@ -472,49 +493,38 @@ class SimulatedWebSocketServer {
             return;
         }
 
-        const giftPayload = {
-            fromUser,
+        // Apenas notifica sobre o presente, sem processar lógica de negócios
+        const giftNotification = {
+            fromUser: {
+                id: fromUser.id,
+                name: fromUser.name,
+                avatar: fromUser.avatarUrl,
+                level: fromUser.level
+            },
             toUser: {
                 id: toUser.id,
-                name: toUser.name,
+                name: toUser.name
             },
-            gift,
-            quantity,
-            roomId
-        };
-
-        console.log(`[WS Server] Broadcasting gift in room ${roomId}:`, giftPayload);
-
-        // Create a chat message for the gift
-        const giftMessage = {
-            id: Date.now(),
-            type: 'gift',
-            user: fromUser.name,
-            level: fromUser.level,
-            avatar: fromUser.avatarUrl,
             gift: {
+                id: gift.id,
                 name: gift.name,
                 icon: gift.icon,
-                quantity: quantity
+                price: gift.price
             },
-            message: `${fromUser.name} enviou ${quantity}x ${gift.name}`,  // Fallback message
-            roomId
+            quantity,
+            roomId,
+            timestamp: new Date().toISOString()
         };
 
-        // Broadcast the gift animation
+        console.log(`[WS Server] Notifying about gift in room ${roomId}:`, giftNotification);
+
+        // Envia notificação para todos na sala
         room.forEach(userIdInRoom => {
             const userSocket = this.connections.get(userIdInRoom);
             if (userSocket) {
-                // Send the gift animation
                 userSocket.onMessage({
-                    type: 'newStreamGift',
-                    payload: giftPayload
-                });
-                
-                // Also send as a chat message
-                userSocket.onMessage({
-                    type: 'newStreamMessage',
-                    payload: giftMessage
+                    type: 'giftNotification',
+                    payload: giftNotification
                 });
             }
         });
@@ -619,9 +629,22 @@ class WebSocketManager extends EventEmitter {
         webSocketServerInstance.handleMessage(this.userId, { type: 'sendStreamMessage', payload: { roomId, text } });
     }
 
-    sendStreamGift(roomId: string, gift: Gift, quantity: number) {
-        if (!this.isConnected || !this.userId) return;
-        webSocketServerInstance.handleMessage(this.userId, { type: 'sendStreamGift', payload: { roomId, gift, quantity } });
+    async sendStreamGift(roomId: string, gift: Gift, quantity: number): Promise<boolean> {
+        if (!this.isConnected || !this.userId) return false;
+        
+        try {
+            // Apenas notifica os clientes via WebSocket
+            // A lógica de negócio deve ser tratada na API
+            webSocketServerInstance.handleMessage(this.userId, { 
+                type: 'sendStreamGift', 
+                payload: { roomId, gift, quantity } 
+            });
+            return true;
+            
+        } catch (error) { 
+            console.error('Erro ao notificar envio de presente:', error instanceof Error ? error.message : 'Erro desconhecido');
+            return false;
+        }
     }
 
     sendKickRequest(roomId: string, userId: string, byUserId: string) {

@@ -58,6 +58,7 @@ export interface MusicTrack {
 }
 
 export interface Gift {
+  id: string;
   name: string;
   price?: number;
   icon: string;
@@ -65,6 +66,20 @@ export interface Gift {
   category: 'Popular' | 'Luxo' | 'Atividade' | 'VIP' | 'Efeito' | 'Entrada';
   triggersAutoFollow?: boolean;
   videoUrl?: string;
+}
+
+export interface ReceivedGift extends Omit<Gift, 'component'> {
+  count: number;
+  viewed: boolean;
+  lastReceived: string;
+  senders: Array<{
+    userId: string;
+    name: string;
+    avatarUrl: string;
+    count: number;
+    lastSent: string;
+    viewed: boolean;
+  }>;
 }
 
 export interface Obra {
@@ -142,8 +157,16 @@ export interface User {
       friendsOnly: boolean;
   };
   platformEarnings?: number;
+  adminEarnings?: number;
   adminWithdrawalMethod?: { email: string; };
   frameExpiration?: string | null;
+  transactions?: Array<{
+    type: string;
+    amount: number;
+    fee?: number;
+    status?: string;
+    timestamp: number;
+  }>;
 }
 
 export interface LevelInfo {
@@ -259,12 +282,14 @@ export interface BeautySettings {
 export interface PurchaseRecord {
   id: string;
   userId: string;
-  type: 'purchase_diamonds' | 'withdraw_earnings' | 'withdraw_platform_earnings' | 'purchase_frame' | 'vip_subscription';
+  type: 'purchase_diamonds' | 'withdraw_earnings' | 'withdraw_platform_earnings' | 'purchase_frame' | 'vip_subscription' | 'admin_fee';
   description: string;
   amountBRL: number;
   amountCoins: number;
   status: 'Concluído' | 'Pendente' | 'Cancelado';
   timestamp: string;
+  isAdminTransaction?: boolean;
+  relatedTransactionId?: string;
 }
 
 export interface FeedPhoto {

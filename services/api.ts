@@ -45,7 +45,8 @@ export const api = {
 
     // --- Wallet & Purchases ---
     buyDiamonds: (userId: string, amount: number, price: number) => callApi<{ success: boolean, user: User }>('POST', `/api/users/${userId}/buy-diamonds`, { amount, price }),
-    getPurchaseHistory: (userId: string) => callApi<PurchaseRecord[]>('GET', `/api/purchases/history/${userId}`),
+    getPurchaseHistory: (userId: string, requestingUserId: string) => 
+      callApi<PurchaseRecord[]>('GET', `/api/purchases/history/${userId}`, { requestingUserId }),
     getEarningsInfo: (userId: string) => callApi<{ available_diamonds: number; gross_brl: number; platform_fee_brl: number; net_brl: number; }>('GET', `/api/earnings/get/${userId}`),
     calculateWithdrawal: (amount: number) => callApi<{ gross_value: number; platform_fee: number; net_value: number }>('POST', '/api/earnings/calculate', { amount }),
     confirmWithdrawal: (userId: string, amount: number) => callApi<{ success: boolean, user: User }>('POST', `/api/earnings/withdraw/${userId}`, { amount }),
@@ -159,3 +160,7 @@ export const api = {
     // --- Fan Club ---
     getFanClubMembers: (streamerId: string) => callApi<User[]>('GET', `/api/fanclub/${streamerId}/members`),
 };
+export function sendGift(userId: string, roomId: string, id: string, quantity: number) {
+    throw new Error('Function not implemented.');
+}
+

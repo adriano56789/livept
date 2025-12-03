@@ -1,7 +1,7 @@
-import { mockApiRouter } from './server';
-import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, PurchaseRecord, Visitor, EligibleUser, FeedPhoto, LiveSessionState, LevelInfo, GoogleAccount, StreamHistoryEntry, Comment, MusicTrack } from '../types';
-import { delay, CURRENT_USER_ID } from './database';
-import { webSocketManager } from './websocket';
+import { mockApiRouter } from './services/server';
+import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, PurchaseRecord, Visitor, EligibleUser, FeedPhoto, LiveSessionState, LevelInfo, GoogleAccount, StreamHistoryEntry, Comment, MusicTrack } from './types';
+import { delay, CURRENT_USER_ID } from './services/database';
+import { webSocketManager } from './services/websocket';
 
 const callApi = async <T>(method: string, path: string, body?: any): Promise<T> => {
     await delay(Math.random() * 150 + 50); // Simulate network latency
@@ -48,10 +48,13 @@ export const api = {
     getPurchaseHistory: (userId: string) => callApi<PurchaseRecord[]>('GET', `/api/purchases/history/${userId}`),
     getEarningsInfo: (userId: string) => callApi<{ available_diamonds: number; gross_brl: number; platform_fee_brl: number; net_brl: number; }>('GET', `/api/earnings/get/${userId}`),
     calculateWithdrawal: (amount: number) => callApi<{ gross_value: number; platform_fee: number; net_value: number }>('POST', '/api/earnings/calculate', { amount }),
+    requestWithdrawal: (userId: string, amount: number) => callApi<{ success: boolean; amount: number; fee: number; newBalance: number }>('POST', '/api/withdraw', { userId, amount }),
+    
+    // --- Admin Wallet ---
+    getAdminWallet: (adminUserId: string) => callApi<{ balance: number; transactions: Array<{type: string; amount: number; from?: string; timestamp: number}> }>('GET', '/api/admin/wallet', { userId: adminUserId }),
     confirmWithdrawal: (userId: string, amount: number) => callApi<{ success: boolean, user: User }>('POST', `/api/earnings/withdraw/${userId}`, { amount }),
     setWithdrawalMethod: (method: string, details: any) => callApi<{ success: boolean, user: User }>('POST', `/api/earnings/method/set/${CURRENT_USER_ID}`, { method, details }),
 
-    // --- Admin Wallet ---
     saveAdminWithdrawalMethod: (email: string) => callApi<{ success: boolean, user: User }>('POST', '/api/admin/withdrawal-method', { email }),
     requestAdminWithdrawal: () => callApi<{ success: boolean, message: string }>('POST', '/api/admin/withdraw'),
     getAdminWithdrawalHistory: (status: 'all' | 'Concluído' | 'Pendente' | 'Cancelado' = 'all') => 
