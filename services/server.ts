@@ -3,6 +3,36 @@ import { db, CURRENT_USER_ID, createChatKey, saveDb, levelProgression, avatarFra
 import { User, Streamer, Message, RankedUser, Gift, Conversation, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, NotificationSettings, BeautySettings, LevelInfo, Comment, MusicTrack } from '../types';
 import { webSocketServerInstance } from './websocket';
 
+/**
+ * Formata a resposta da API para garantir que sempre retorne JSON
+ * @param status Código HTTP da resposta
+ * @param data Dados a serem retornados (opcional)
+ * @param error Mensagem de erro (opcional)
+ * @returns Objeto de resposta formatado
+ */
+function formatResponse(status: number, data?: any, error?: string): ApiResponse {
+    return {
+        status,
+        ...(data && { data }),
+        ...(error && { error })
+    };
+}
+
+// Log de inicialização do servidor mock
+console.log('🔹 [MOCK API] Servidor de simulação inicializado');
+console.log('🔹 [MOCK API] Rotas disponíveis:');
+console.log('   POST   /api/feed/posts');
+console.log('   GET    /api/feed/photos');
+console.log('   GET    /api/visitors/list/:userId');
+console.log('   GET    /api/users/:userId/photos');
+console.log('   GET    /api/market');
+console.log('   GET    /api/pk/battle');
+console.log('   GET    /api/blocked-users');
+console.log('   GET    /api/broadcaster/:id');
+console.log('   GET    /api/visitors');
+console.log('   POST   /api/live/start');
+console.log('🔹 [MOCK API] Aguardando requisições...\n');
+
 interface ApiResponse {
   status: number;
   data?: any;
@@ -98,17 +128,17 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
         const streamerId = id;
         const allUsers = Array.from(db.users.values());
         const members = allUsers.filter(u => u.fanClub?.streamerId === streamerId);
-        return { status: 200, data: members };
+        return formatResponse(200, members);
     }
 
     if (entity === 'translate' && method === 'POST') {
         const { text, targetLang } = body;
         if (!text || !targetLang) {
-            return { status: 400, error: 'Text and target language are required.' };
+            return formatResponse(400, null, 'Text and target language are required.');
         }
         // Simulate translation by prepending the language code.
         const translatedText = `[${targetLang}] ${text}`;
-        return { status: 200, data: { translatedText } };
+        return formatResponse(200, { translatedText });
     }
 
     if (entity === 'admin') {
@@ -118,9 +148,9 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 adminUser.adminWithdrawalMethod = { email: body.email };
                 db.users.set(CURRENT_USER_ID, adminUser);
                 saveDb();
-                return { status: 200, data: { success: true, user: adminUser } };
+                return formatResponse(200, { success: true, user: adminUser });
             }
-            return { status: 404, error: "Admin user not found." };
+            return formatResponse(404, null, "Admin user not found.");
         }
         if (id === 'withdraw' && method === 'POST') {
             const adminUser = db.users.get(CURRENT_USER_ID);
@@ -1660,12 +1690,286 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
 
     }
 
-  } catch (e) {
+    // ==============================================
+    // Rotas do Feed, Visitantes e Fotos do Usuário
+    // ==============================================
+
+    // Rota: POST /api/feed/posts (MOCK)
+    if (method === 'POST' && path === '/api/feed/posts') {
+        console.log(`🔹 [MOCK API] ${new Date().toISOString()} - POST ${path} recebido`);
+        console.log('   Dados recebidos:', JSON.stringify(body, null, 2));
+        try {
+            const { userId, content, mediaType, mediaUrl, timestamp } = body;
+            
+            if (!userId) {
+                return { status: 400, error: 'userId é obrigatório' };
+            }
+            
+            // Gera um ID único para o post
+            const postId = `post_${Date.now()}`;
+            
+            // Cria um objeto de resposta mock
+            const mockPost = {
+                id: postId,
+                userId,
+                content: content || '',
+                mediaType: mediaType || 'image',
+                mediaUrl: mediaUrl || '',
+                timestamp: timestamp || new Date().toISOString(),
+                likes: 0,
+                comments: [],
+                user: {
+                    id: userId,
+                    name: 'Usuário Mock',
+                    avatarUrl: 'https://picsum.photos/200',
+                    isVerified: false
+                }
+            };
+            
+            // Retorna a resposta de sucesso
+            const response = {
+                status: 201,
+                data: {
+                    success: true,
+                    message: 'Post criado com sucesso (MOCK)',
+                    post: mockPost
+                }
+            };
+            
+            console.log(`🔹 [MOCK API] ${new Date().toISOString()} - POST ${path} respondido com sucesso`);
+            console.log('   Resposta:', JSON.stringify(response, null, 2));
+            return response;
+        } catch (error) {
+            console.error('Erro no mock ao criar post:', error);
+            return formatResponse(500, null, 'Erro no mock ao criar post');
+        }
+    }
+
+    // Rota: GET /api/market
+    if (method === 'GET' && path === '/api/market') {
+        console.log(`🔹 [MOCK API] ${new Date().toISOString()} - GET ${path} recebido`);
+        try {
+            // Simula dados do mercado
+            const marketData = {
+                featuredItems: [],
+                categories: [],
+                newArrivals: []
+            };
+            console.log('   Retornando dados do mercado');
+            return formatResponse(200, marketData);
+        } catch (error) {
+            console.error('Erro ao buscar dados do mercado:', error);
+            return formatResponse(500, null, 'Erro ao buscar dados do mercado');
+        }
+    }
+
+    // Rota: GET /api/pk/battle
+    if (method === 'GET' && path === '/api/pk/battle') {
+        console.log(`🔹 [MOCK API] ${new Date().toISOString()} - GET ${path} recebido`);
+        try {
+            // Simula dados de batalha PK
+            const battleData = {
+                currentBattle: null,
+                leaderboard: []
+            };
+            console.log('   Retornando dados de batalha PK');
+            return formatResponse(200, battleData);
+        } catch (error) {
+            console.error('Erro ao buscar dados de batalha PK:', error);
+            return formatResponse(500, null, 'Erro ao buscar dados de batalha PK');
+        }
+    }
+
+    // Rota: GET /api/blocked-users
+    if (method === 'GET' && path === '/api/blocked-users') {
+        console.log(`🔹 [MOCK API] ${new Date().toISOString()} - GET ${path} recebido`);
+        try {
+            // Simula lista de usuários bloqueados
+            const blockedUsers = [];
+            console.log(`   Retornando ${blockedUsers.length} usuários bloqueados`);
+            return formatResponse(200, blockedUsers);
+        } catch (error) {
+            console.error('Erro ao buscar usuários bloqueados:', error);
+            return formatResponse(500, null, 'Erro ao buscar usuários bloqueados');
+        }
+}
+
+// Rota: GET /api/live/popular
+if (method === 'GET' && path === '/api/live/popular') {
+    console.log(` [LIVE API] ${new Date().toISOString()} - Buscando transmissões populares`);
+    try {
+        // Filtra apenas usuários que estão ao vivo
+        const liveStreams = Array.from(db.users.values())
+            .filter((user: User) => user.isLive)
+            .map((user) => {
+                // Cria um tipo que inclui todas as propriedades que podemos acessar
+                type ExtendedUser = {
+                    id: string;
+                    name: string;
+                    username: string;
+                    avatarUrl: string;
+                    isLive?: boolean;
+                    liveTitle?: string;
+                    thumbnailUrl?: string;
+                    viewerCount?: number;
+                    followers?: string[];
+                    liveCategory?: string;
+                    liveTags?: string[];
+                    isVerified?: boolean;
+                    diamonds?: number;
+                    level?: number;
+                };
+
+                const safeUser = user as unknown as ExtendedUser;
+                
+                return {
+                    id: safeUser.id,
+                    username: safeUser.username || '',
+                    displayName: safeUser.name || '',
+                    avatarUrl: safeUser.avatarUrl || '',
+                    title: safeUser.liveTitle || 'Transmissão ao vivo',
+                    thumbnailUrl: safeUser.thumbnailUrl || safeUser.avatarUrl || '',
+                    viewerCount: safeUser.viewerCount ?? Math.floor(Math.random() * 1000) + 50,
+                    isFollowing: safeUser.followers?.includes(CURRENT_USER_ID) || false,
+                    category: safeUser.liveCategory || 'Entretenimento',
+                    tags: safeUser.liveTags || [],
+                    isVerified: safeUser.isVerified || false,
+                    diamonds: safeUser.diamonds || 0,
+                    level: safeUser.level || 1
+                };
+            });
+
+        console.log(`🟢 [LIVE API] ${liveStreams.length} transmissões ao vivo encontradas`);
+        return formatResponse(200, liveStreams);
+    } catch (error) {
+        console.error(`🔴 [LIVE API] Erro ao buscar transmissões:`, error);
+        return formatResponse(500, null, 'Erro ao buscar transmissões ao vivo');
+    }
+}
+
+// Rota: POST /api/live/start
+if (method === 'POST' && path === '/api/live/start') {
+    console.log(`🔹 [MOCK API] ${new Date().toISOString()} - POST ${path} recebido`);
+    console.log('   Dados recebidos:', JSON.stringify(body, null, 2));
+    try {
+        // Simula início de transmissão
+        const liveData = {
+            streamId: `stream_${Date.now()}`,
+            rtmpUrl: 'rtmp://mock-server/live',
+            streamKey: `mock_key_${Math.random().toString(36).substr(2, 9)}`,
+            status: 'starting'
+        };
+        console.log('   Iniciando transmissão:', liveData);
+        return { status: 200, data: liveData };
+    } catch (error) {
+        console.error('Erro ao iniciar transmissão:', error);
+        return { status: 500, error: 'Erro ao iniciar transmissão' };
+    }
+}
+
+// Rota: GET /api/feed/photos
+if (method === 'GET' && path === '/api/feed/photos') {
+    console.log(`🔹 [MOCK API] ${new Date().toISOString()} - GET ${path} recebido`);
+    try {
+        // Retorna as fotos do feed global ou uma lista vazia se não houver
+        const response = { status: 200, data: db.photoFeed || [] };
+        console.log(`🔹 [MOCK API] ${new Date().toISOString()} - GET ${path} respondido com sucesso`);
+        console.log(`   Total de fotos retornadas: ${response.data.length}`);
+        return response;
+    } catch (error) {
+        console.error('Erro ao buscar fotos do feed:', error);
+        return { status: 500, error: 'Erro ao buscar fotos do feed' };
+    }
+    }
+
+    // Rota: GET /api/visitors/list/:userId
+    if (method === 'GET' && path.startsWith('/api/visitors/list/')) {
+        console.log(`🔹 [MOCK API] ${new Date().toISOString()} - GET ${path} recebido`);
+        try {
+            const userId = path.split('/').pop();
+            console.log(`   Buscando visitantes para o usuário: ${userId}`);
+            const user = db.users.get(userId || '');
+            
+            if (!user) {
+                return { status: 404, error: 'Usuário não encontrado' };
+            }
+
+            // Retorna a lista de visitantes do perfil
+            const visits = db.visits as unknown as Record<string, { visitorId: string; timestamp: string; profileId: string }[]>;
+            
+            const visitors = Object.entries(visits)
+                .filter(([_, visitList]) => 
+                    Array.isArray(visitList) && 
+                    visitList.some(visit => visit.profileId === userId)
+                )
+                .map(([visitorId, visitList]) => {
+                    const lastVisit = visitList.find(visit => visit.profileId === userId);
+                    const visitor = db.users.get(visitorId);
+                    return {
+                        id: visitorId,
+                        name: visitor?.name || 'Usuário desconhecido',
+                        avatarUrl: visitor?.avatarUrl || '',
+                        visitedAt: lastVisit?.timestamp || new Date().toISOString(),
+                        isFollowing: Array.isArray(visitor?.following) && visitor.following.includes(userId || '')
+                    };
+                })
+                .sort((a, b) => new Date(b.visitedAt).getTime() - new Date(a.visitedAt).getTime());
+
+            return { status: 200, data: visitors };
+        } catch (error) {
+            console.error('Erro ao buscar visitantes:', error);
+            return { status: 500, error: 'Erro ao buscar visitantes' };
+        }
+    }
+
+    // Rota: GET /api/users/:userId/photos
+    if (method === 'GET' && path.startsWith('/api/users/') && path.endsWith('/photos')) {
+        console.log(`🔹 [MOCK API] ${new Date().toISOString()} - GET ${path} recebido`);
+        try {
+            const userId = path.split('/')[3];
+            console.log(`   Buscando fotos do usuário: ${userId}`);
+            const user = db.users.get(userId);
+                
+            if (!user) {
+                return { status: 404, error: 'Usuário não encontrado' };
+            }
+
+            const userPhotos = (user.obras || [])
+                .filter((obra: any) => obra.type === 'image' || obra.type === 'video')
+                .map((obra: any) => {
+                    // Verifica se a obra tem a propriedade 'comments' e se é um array
+                    const commentCount = Array.isArray((obra as any).comments) ? (obra as any).comments.length : 0;
+                    
+                    return {
+                        id: obra.id,
+                        photoUrl: obra.url,
+                        thumbnailUrl: obra.thumbnailUrl || obra.url,
+                        type: obra.type,
+                        description: (obra.description || obra.caption || '').toString(),
+                        likes: Array.isArray(user.curtidas) ? 
+                            user.curtidas.filter((l: any) => l.obra?.id === obra.id).length : 0,
+                        isLiked: Array.isArray(user.curtidas) ? 
+                            user.curtidas.some((l: any) => l.obra?.id === obra.id) : false,
+                        commentCount: commentCount,
+                        createdAt: (obra as any).createdAt || new Date().toISOString()
+                    };
+                })
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+            return formatResponse(200, userPhotos);
+        } catch (error) {
+            console.error('Erro ao buscar fotos do usuário:', error);
+            return formatResponse(500, null, 'Erro ao buscar fotos do usuário');
+        }
+    }
+
+    // Se chegou até aqui, a rota não foi encontrada
+    const errorMessage = `Endpoint não encontrado: ${method} ${path}`;
+    console.error(`[API MOCK] ${errorMessage}`);
+    return formatResponse(404, null, errorMessage);
+    
+} catch (e) {
     console.error(`[API MOCK] Error processing ${method} ${path}:`, e);
-    return { status: 500, error: 'Internal Server Error' };
-  }
-  
-  // Return a 404 for any unhandled routes
-  console.error(`[API MOCK] Unhandled route: ${method} ${path}`);
-  return { status: 404, error: `Unhandled route: ${method} ${path}` };
+    return formatResponse(500, null, 'Erro interno do servidor');
+}
 };
