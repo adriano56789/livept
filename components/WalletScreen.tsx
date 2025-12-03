@@ -99,7 +99,14 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ onClose, onPurchase, initia
 
       <main className="flex-grow overflow-y-auto p-4 space-y-4">
         {activeTab === 'Diamante' && <DiamanteTab onPurchase={onPurchase} currentUser={currentUser} />}
-        {isBroadcaster && activeTab === 'Ganhos' && <GanhosTab onConfigure={() => setView('configure_withdrawal')} currentUser={currentUser} updateUser={updateUser} addToast={addToast} />}
+        {isBroadcaster && activeTab === 'Ganhos' && (
+          <GanhosTab 
+            onConfigure={() => setView('configure_withdrawal')} 
+            currentUser={currentUser} 
+            updateUser={updateUser} 
+            addToast={addToast} 
+          />
+        )}
       </main>
     </div>
   );

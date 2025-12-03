@@ -82,6 +82,13 @@ interface StreamRoomData {
 const AppContent: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  
+  // Log para visualizar o ID do usuário atual
+  useEffect(() => {
+    if (currentUser) {
+      console.log('ID do usuário atual:', currentUser.id);
+    }
+  }, [currentUser]);
   const [isLoadingCurrentUser, setIsLoadingCurrentUser] = useState<boolean>(true);
   const [isEnteringStream, setIsEnteringStream] = useState<boolean>(false);
   
@@ -897,7 +904,7 @@ const handleDenyLocation = async () => {
 
         if (!streamId) {
             const toastMessage = updatedFollowed.isFollowed
-                ? t('toasts.followedUser', { name: userToFollow.name })
+                ? `Você seguiu ${userToFollow.name}.`
                 : `Você deixou de seguir ${userToFollow.name}.`;
             addToast(ToastType.Success, toastMessage);
         }
@@ -1005,7 +1012,7 @@ const handleDenyLocation = async () => {
             const { success, config } = await api.updatePKConfig(duration);
             if (success && config) {
                 setPkBattleDuration(config.duration);
-                addToast(ToastType.Success, t('toasts.pkDurationSet', { duration }));
+                addToast(ToastType.Success, `Duração da batalha PK definida para ${duration} minutos.`);
             } else {
                 throw new Error("Falha ao salvar configuração.");
             }
@@ -1021,10 +1028,10 @@ const handleDenyLocation = async () => {
             const { success, user } = await api.purchaseEffect(currentUser.id, gift);
             if (success && user) {
                 updateUserEverywhere(user);
-                addToast(ToastType.Success, t('vip.store.purchaseSuccess', { name: gift.name }));
+                addToast(ToastType.Success, `Compra de ${gift.name} realizada com sucesso!`);
             }
         } else {
-            addToast(ToastType.Error, t('vip.store.notEnoughDiamonds'));
+            addToast(ToastType.Error, 'Diamantes insuficientes para esta compra.');
         }
     }
 
@@ -1048,7 +1055,7 @@ const handleDenyLocation = async () => {
             break;
     }
   };
-
+  
   const handleOpenMyStream = () => {
     if (!currentUser) return;
     if (!currentUser.isLive) {
@@ -1225,7 +1232,13 @@ const handleDenyLocation = async () => {
                     onOpenFAQ={() => setIsFAQScreenOpen(true)}
                     onOpenSettings={() => setIsSettingsScreenOpen(true)}
                     onOpenSupportChat={() => api.getAllUsers().then(users => setChattingWith(users.find(u => u.id === 'support-livercore')))}
-                    onOpenAdminWallet={() => setIsAdminWalletOpen(true)}
+                    onOpenAdminWallet={() => {
+                      if (currentUser?.id === 'SEU_ID_DE_USUARIO') {
+                        setIsAdminWalletOpen(true);
+                      } else {
+                        addToast(ToastType.Error, 'Acesso não autorizado.');
+                      }
+                    }}
                     visitors={visitors}
                     onOpenAvatarProtection={() => setIsAvatarProtectionScreenOpen(true)}
                 />
@@ -1272,21 +1285,14 @@ const handleDenyLocation = async () => {
       {activeStream && isPrivateInviteModalOpen && <PrivateInviteModal isOpen={isPrivateInviteModalOpen} onClose={() => setIsPrivateInviteModalOpen(false)} streamId={activeStream.id} currentUser={currentUser} addToast={addToast} followingUsers={followingUsers} onFollowUser={handleFollowUser} allGifts={allGifts} />}
       {photoViewerData && <FullScreenPhotoViewer photos={photoViewerData.photos} initialIndex={photoViewerData.initialIndex} onClose={() => setPhotoViewerData(null)} onViewProfile={handleViewProfile} onPhotoLiked={() => setLastPhotoLikeUpdate(Date.now())} />}
       <LiveHistoryScreen isOpen={isLiveHistoryOpen} onClose={() => setIsLiveHistoryOpen(false)} history={streamHistory} />
-      <AdminWalletScreen isOpen={isAdminWalletOpen} onClose={() => setIsAdminWalletOpen(false)} currentUser={currentUser} updateUser={updateUserEverywhere} addToast={addToast} />
-      <PrivateChatModal isOpen={isPrivateChatModalOpen} onClose={() => setIsPrivateChatModalOpen(false)} onStartChat={(user) => { setIsPrivateChatModalOpen(false); setChattingWith(user);}} conversations={conversations} />
-      <PKBattleTimerSettingsScreen isOpen={isPKTimerSettingsOpen} onBack={() => setIsPKTimerSettingsOpen(false)} onSave={handleSavePKTimer} />
-      {isVIPCenterOpen && currentUser && <VIPCenterScreen isOpen={isVIPCenterOpen} onClose={() => setIsVIPCenterOpen(false)} user={currentUser} onSubscribe={handleSubscribeVIP} />}
-      {isFanClubMembersModalOpen && viewingFanClubStreamer && (
-          <FanClubMembersModal
-              isOpen={isFanClubMembersModalOpen}
-              onClose={handleCloseFanClubMembers}
-              streamer={viewingFanClubStreamer}
-              members={fanClubMembers}
-              onViewProfile={(user) => {
-                  handleCloseFanClubMembers();
-                  handleViewProfile(user);
-              }}
-          />
+      {isAdminWalletOpen && currentUser?.id === import.meta.env.VITE_ADMIN_USER_ID && (
+        <AdminWalletScreen 
+          isOpen={isAdminWalletOpen} 
+          onClose={() => setIsAdminWalletOpen(false)} 
+          currentUser={currentUser} 
+          updateUser={updateUserEverywhere} 
+          addToast={addToast} 
+        />
       )}
 
       <div className="absolute top-4 right-4 left-4 sm:left-auto space-y-2 z-[9999] pointer-events-none">

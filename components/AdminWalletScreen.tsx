@@ -1,8 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { BackIcon, BankIcon, EnvelopeIcon, PencilIcon, DocumentTextIcon, CheckCircleIcon, ClockIcon, MinusCircleIcon } from './icons';
 import { User, ToastType, PurchaseRecord } from '../types';
 import { api } from '../services/api';
 import { LoadingSpinner } from './Loading';
+// Removido useNavigate desnecessário
+
+// IDs com permissão de administrador (incluindo o dono)
+const ADMIN_IDS = [
+    '10755083', // ID do dono
+    import.meta.env.VITE_ADMIN_USER_ID || '' // ID adicional de variável de ambiente
+].filter(Boolean); // Remove strings vazias
 
 interface AdminWalletScreenProps {
   isOpen: boolean;
@@ -85,7 +92,38 @@ const BalanceDisplay: React.FC<{ earnings: number | undefined }> = ({ earnings =
     </div>
 );
 
-const AdminWalletScreen: React.FC<AdminWalletScreenProps> = ({ isOpen, onClose, currentUser, updateUser, addToast }) => {
+function AdminWalletScreen({
+    isOpen = false,
+    onClose = () => console.warn('onClose não fornecido'),
+    currentUser = { 
+        id: '',
+        identification: '',
+        name: '',
+        avatarUrl: '',
+        level: 1,
+        fans: 0,
+        following: 0,
+        receptores: 0,
+        enviados: 0,
+        diamonds: 0,
+        earnings: 0,
+        earnings_withdrawn: 0,
+        platformEarnings: 0,
+        ownedFrames: [],
+        adminWithdrawalMethod: { email: '' },
+        transactions: []
+    } as User,
+    updateUser = () => console.warn('updateUser não fornecido'),
+    addToast = (type: ToastType, message: string) => console.log(`[Toast ${type}]: ${message}`)
+}: AdminWalletScreenProps) {
+
+    console.log('[AdminWalletScreen] Renderizando com props:', { 
+        isOpen, 
+        currentUserId: currentUser?.id, 
+        adminIds: ADMIN_IDS 
+    });
+
+    // Estados
     const [email, setEmail] = useState('');
     const [isEditingEmail, setIsEditingEmail] = useState(false);
     const [isSavingEmail, setIsSavingEmail] = useState(false);
@@ -94,16 +132,64 @@ const AdminWalletScreen: React.FC<AdminWalletScreenProps> = ({ isOpen, onClose, 
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const [filter, setFilter] = useState<FilterType>('all');
 
-    useEffect(() => {
-        if (isOpen) {
-            const savedEmail = currentUser.adminWithdrawalMethod?.email;
-            setEmail(savedEmail || '');
-            setIsEditingEmail(!savedEmail); 
-        }
-    }, [isOpen, currentUser.adminWithdrawalMethod]);
+    // Verificação segura de admin - usando useMemo para evitar recálculos desnecessários
+    const isAdmin = useMemo(() => {
+        const admin = currentUser?.id ? ADMIN_IDS.includes(currentUser.id) : false;
+        console.log('[AdminWalletScreen] Verificação de admin:', { 
+            userId: currentUser?.id, 
+            isAdmin: admin,
+            adminIds: ADMIN_IDS 
+        });
+        return admin;
+    }, [currentUser?.id]);
 
+    // Efeito para validação de permissões e gerenciamento do estado do modal
     useEffect(() => {
-        if (isOpen) {
+        console.log('[AdminWalletScreen] Efeito de permissões - Estado atual:', {
+            isOpen,
+            isAdmin,
+            hasUserId: !!currentUser?.id
+        });
+
+        if (!isOpen) {
+            console.log('[AdminWalletScreen] Modal não está aberto, pulando validação');
+            return;
+        }
+        
+        try {
+            if (!currentUser?.id) {
+                throw new Error('Usuário não autenticado ou sem ID');
+            }
+            
+            if (!isAdmin) {
+                console.warn('[AdminWalletScreen] Acesso negado - ID não está na lista de administradores:', {
+                    userId: currentUser.id,
+                    adminIds: ADMIN_IDS
+                });
+                addToast(ToastType.Error, 'Acesso restrito a administradores.');
+                onClose();
+                return;
+            }
+            
+            console.log('[AdminWalletScreen] Acesso concedido ao admin:', currentUser.id);
+            
+            // Carrega o e-mail salvo quando o modal é aberto e o usuário é admin
+            const savedEmail = currentUser?.adminWithdrawalMethod?.email || '';
+            console.log('[AdminWalletScreen] E-mail recuperado:', savedEmail || 'nenhum e-mail salvo');
+            
+            setEmail(savedEmail);
+            setIsEditingEmail(!savedEmail);
+            
+        } catch (error) {
+            console.error('[AdminWalletScreen] Erro na validação de permissões:', error);
+            addToast(ToastType.Error, 'Erro ao verificar permissões.');
+            onClose();
+        }
+    }, [isOpen, isAdmin, currentUser, onClose, addToast]);
+    
+    // Efeito para carregar o histórico de saques quando o modal estiver aberto e o filtro mudar
+    useEffect(() => {
+        if (isOpen && isAdmin) {
             setIsLoadingHistory(true);
             api.getAdminWithdrawalHistory(filter)
                 .then(setHistory)

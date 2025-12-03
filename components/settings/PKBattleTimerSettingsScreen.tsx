@@ -10,7 +10,9 @@ const PKBattleTimerSettingsScreen: React.FC<PKBattleTimerSettingsScreenProps> = 
   const timeOptions = [7, 5, 12, 20];
   const [selectedTime, setSelectedTime] = useState<number>(timeOptions[0]);
 
-  const handleSave = () => {
+  const handleSave = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     onSave(selectedTime);
   };
 
