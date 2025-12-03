@@ -3,12 +3,12 @@
   "appName": "LiveGo",
   "webDir": "dist",
   "bundledWebRuntime": false,
-  "icon": "resources/icon.png",
   "server": {
-    "url": "http://localhost:5173",
     "androidScheme": "https",
     "cleartext": true,
-    "allowNavigation": ["*"],
+    "allowNavigation": [
+      "*"
+    ],
     "allowMixedContent": true,
     "hostname": "localhost"
   },
@@ -28,7 +28,9 @@
       "keystorePassword": "",
       "keyPassword": ""
     },
-    "allowNavigation": ["*"],
+    "allowNavigation": [
+      "*"
+    ],
     "permissions": [
       "CAMERA",
       "RECORD_AUDIO",
