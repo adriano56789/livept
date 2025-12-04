@@ -173,6 +173,6 @@ export const api = {
     deleteData: (entity: string, id: string) => callApi<{ success: boolean }>('DELETE', `/api/data/${entity}/${id}`),
 };
 export function sendGift(userId: string, roomId: string, id: string, quantity: number) {
-    throw new Error('Function not implemented.');
+    return callApi<{ success: boolean; error?: string; updatedSender: User; updatedReceiver: User; }>('POST', `/api/streams/${roomId}/gift`, { fromUserId: userId, giftName: id, amount: quantity });
 }
 

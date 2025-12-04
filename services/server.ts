@@ -116,6 +116,15 @@ const updateUserLevel = (user: User): User => {
 };
 
 
+// PK Battle State interface
+interface PKBattleState {
+    opponentId: string;
+    heartsA: number;
+    heartsB: number;
+    scoreA: number;
+    scoreB: number;
+}
+
 // Main router function
 export const mockApiRouter = (method: string, path: string, body?: any): ApiResponse => {
   console.log(`[API MOCK] ${method} ${path}`, body ? 'with body' : '');
@@ -326,6 +335,33 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
 
             return formatResponse(200, history);
         }
+        
+        if (id === 'wallet' && method === 'GET') {
+            // Verifica se o usuário atual é administrador
+            if (!isAdmin(CURRENT_USER_ID)) {
+                return formatResponse(403, null, "Acesso negado. Permissão de administrador necessária.");
+            }
+
+            const adminUser = db.users.get(CURRENT_USER_ID);
+            if (!adminUser) {
+                return formatResponse(404, null, "Usuário administrador não encontrado.");
+            }
+
+            // Get admin transactions (platform earnings and admin fees)
+            const adminTransactions = db.purchases.filter(p => 
+                p.isAdminTransaction && p.userId === CURRENT_USER_ID
+            );
+
+            const balance = db.platform_earnings || 0;
+            const transactions = adminTransactions.map(t => ({
+                type: t.type,
+                amount: t.amountBRL,
+                from: t.description.includes('de ') ? t.description.split('de ')[1] : undefined,
+                timestamp: new Date(t.timestamp).getTime()
+            }));
+
+            return formatResponse(200, { balance, transactions });
+        }
     }
 
     if (entity === 'wallets') {
@@ -372,6 +408,106 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 wallet: wallet,
                 message: `Wallet ${walletId} bloqueada com sucesso.`
             });
+        }
+
+        // GET /api/wallets/:userId - Obter wallet do usuário
+        if (id && !subEntity && method === 'GET') {
+            const userId = id;
+            
+            // Verificação de permissão: usuário só pode ver sua própria wallet, exceto admin
+            if (userId !== CURRENT_USER_ID && !isAdmin(CURRENT_USER_ID)) {
+                return formatResponse(403, null, "Acesso negado. Permissão necessária.");
+            }
+
+            let wallet = db.wallets.get(userId);
+            if (!wallet) {
+                // Se não existe, retorna wallet vazia
+                wallet = {
+                    id: userId,
+                    userId: userId,
+                    isBlocked: false,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+            }
+            
+            return formatResponse(200, wallet);
+        }
+
+        // POST /api/wallets/:userId - Criar wallet do usuário
+        if (id && !subEntity && method === 'POST') {
+            const userId = id;
+            const { initialBalance = 0 } = body;
+            
+            // Verificação de permissão: usuário só pode criar sua própria wallet, exceto admin
+            if (userId !== CURRENT_USER_ID && !isAdmin(CURRENT_USER_ID)) {
+                return formatResponse(403, null, "Acesso negado. Permissão necessária.");
+            }
+
+            // Verifica se wallet já existe
+            if (db.wallets.has(userId)) {
+                return formatResponse(409, null, "Wallet já existe para este usuário.");
+            }
+
+            const newWallet: Wallet = {
+                id: userId,
+                userId: userId,
+                isBlocked: false,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            db.wallets.set(userId, newWallet);
+            saveDb();
+            
+            return formatResponse(201, { success: true, wallet: newWallet });
+        }
+
+        // PUT /api/wallets/:userId - Atualizar wallet do usuário
+        if (id && !subEntity && method === 'PUT') {
+            const userId = id;
+            const updates = body;
+            
+            // Verificação de permissão: usuário só pode atualizar sua própria wallet, exceto admin
+            if (userId !== CURRENT_USER_ID && !isAdmin(CURRENT_USER_ID)) {
+                return formatResponse(403, null, "Acesso negado. Permissão necessária.");
+            }
+
+            const wallet = db.wallets.get(userId);
+            if (!wallet) {
+                return formatResponse(404, null, "Wallet não encontrada.");
+            }
+
+            const updatedWallet = { 
+                ...wallet, 
+                ...updates, 
+                updatedAt: new Date().toISOString() 
+            };
+            
+            db.wallets.set(userId, updatedWallet);
+            saveDb();
+            
+            return formatResponse(200, { success: true, wallet: updatedWallet });
+        }
+
+        // DELETE /api/wallets/:userId - Deletar wallet do usuário
+        if (id && !subEntity && method === 'DELETE') {
+            const userId = id;
+            
+            // Verificação de permissão: usuário só pode deletar sua própria wallet, exceto admin
+            if (userId !== CURRENT_USER_ID && !isAdmin(CURRENT_USER_ID)) {
+                return formatResponse(403, null, "Acesso negado. Permissão necessária.");
+            }
+
+            const wallet = db.wallets.get(userId);
+            if (!wallet) {
+                return formatResponse(404, null, "Wallet não encontrada.");
+            }
+
+            db.wallets.delete(userId);
+            saveDb();
+            
+            return formatResponse(200, { success: true });
         }
     }
 
@@ -878,33 +1014,6 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                         saveDb();
                         webSocketServerInstance.broadcastUserUpdate(user);
                         return { status: 200, data: { success: true, user } };
-                    }
-                }
-             }
-             if (subEntity === 'set-active-frame' && method === 'POST') {
-                const { frameId } = body;
-                const user = db.users.get(id);
-                if (!user) return formatResponse(404, null, "User not found.");
-                
-                // If frameId is null, we are unequipping
-                if (frameId === null) {
-                    user.activeFrameId = null;
-                    user.frameExpiration = null;
-                    db.users.set(id, user);
-                    saveDb();
-                    webSocketServerInstance.broadcastUserUpdate(user);
-                    return { status: 200, data: { success: true, user } };
-                }
-            
-                // Check if user owns the frame and it's not expired
-                const ownedFrame = user.ownedFrames.find(f => f.frameId === frameId);
-                if (ownedFrame && new Date(ownedFrame.expirationDate) > new Date()) {
-                    user.activeFrameId = frameId;
-                    user.frameExpiration = ownedFrame.expirationDate;
-                    db.users.set(id, user);
-                    saveDb();
-                    webSocketServerInstance.broadcastUserUpdate(user);
-                    return { status: 200, data: { success: true, user } };
                 }
                 
                 return formatResponse(400, null, "Você não possui esta moldura ou ela expirou.");
@@ -913,7 +1022,34 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
              if(method === 'GET' && !subEntity) return formatResponse(200, user);
         }
     }
-    
+    }
+
+    // --- Contas Google ---
+    if (entity === 'accounts') {
+        if (id === 'google' && method === 'GET') {
+            if (subEntity === 'connected') {
+                // Retorna contas Google conectadas do usuário atual
+                const connectedAccounts = (db.googleAccounts as any).get(CURRENT_USER_ID) || [];
+                return formatResponse(200, connectedAccounts);
+            }
+            // Retorna todas as contas Google disponíveis (mock)
+            const allAccounts: GoogleAccount[] = [
+                { id: 'google_1', name: 'John Doe', email: 'john.doe@gmail.com', avatarUrl: 'https://via.placeholder.com/40' },
+                { id: 'google_2', name: 'Jane Smith', email: 'jane.smith@gmail.com', avatarUrl: 'https://via.placeholder.com/40' }
+            ];
+            return formatResponse(200, allAccounts);
+        }
+        
+        if (id === 'google' && subEntity === 'disconnect' && method === 'POST') {
+            const { email } = body;
+            const userAccounts = (db.googleAccounts as any).get(CURRENT_USER_ID) || [];
+            const updatedAccounts = userAccounts.filter(account => account.email !== email);
+            (db.googleAccounts as any).set(CURRENT_USER_ID, updatedAccounts);
+            saveDb();
+            return formatResponse(200, { success: true });
+        }
+    }
+
     if (entity === 'permissions') {
         if (id === 'camera' && subEntity) { // subEntity is userId
             const userId = subEntity;
@@ -1151,6 +1287,81 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
       }
     }
     
+    // Rota genérica de saque (compatibilidade com api.ts)
+    if (entity === 'withdraw' && method === 'POST') {
+        const { userId, amount } = body;
+        
+        // Verificação de permissão: usuário só pode sacar seus próprios ganhos, exceto admin
+        if (userId !== CURRENT_USER_ID && !isAdmin(CURRENT_USER_ID)) {
+            return formatResponse(403, null, "Acesso negado. Você só pode realizar saques de sua própria conta.");
+        }
+
+        const user = db.users.get(userId);
+        if (!user) return formatResponse(404, null, "Usuário não encontrado.");
+        
+        // Validação do valor
+        if (typeof amount !== 'number' || amount <= 0 || !Number.isFinite(amount)) {
+            return formatResponse(400, null, "Valor de saque inválido. Forneça um número válido maior que zero.");
+        }
+        
+        // Validação de valor mínimo e máximo
+        if (amount < 100) {
+            return formatResponse(400, null, "Valor mínimo de saque é 100 diamantes.");
+        }
+        
+        if (amount > 1000000) {
+            return formatResponse(400, null, "Valor máximo de saque é 1.000.000 diamantes.");
+        }
+        
+        if (!user.withdrawal_method) return formatResponse(400, null, "Método de saque não configurado. Configure um método de saque antes de solicitar.");
+        if ((user.earnings || 0) < amount) return formatResponse(400, null, "Saldo de ganhos insuficiente para este saque.");
+        
+        const grossBRLFull = calculateGrossBRL(amount);
+        const feeFull = grossBRLFull * 0.20; // platform fee
+        const netBRLFull = grossBRLFull - feeFull; // streamer gets this
+        
+        // Process withdrawal
+        user.earnings -= amount;
+        user.earnings_withdrawn = (user.earnings_withdrawn || 0) + amount;
+        
+        // Add fee to platform earnings
+        db.platform_earnings += feeFull;
+
+        // Create withdrawal transaction for the streamer
+        const withdrawalTransaction: PurchaseRecord = {
+          id: `withdraw_${Date.now()}`,
+          userId: user.id,
+          type: 'withdraw_earnings',
+          description: `Saque para ${user.withdrawal_method.method}`,
+          amountBRL: truncateBRL(netBRLFull),
+          amountCoins: amount,
+          status: 'Concluído',
+          timestamp: new Date().toISOString(),
+          isAdminTransaction: false
+        };
+
+        // Add transactions to the database
+        db.purchases.unshift(withdrawalTransaction);
+        
+        db.users.set(userId, user);
+        saveDb();
+
+        // Broadcast updates
+        webSocketServerInstance.broadcastUserUpdate(user);
+        webSocketServerInstance.broadcastTransactionUpdate(withdrawalTransaction);
+
+        // Return success with detailed information
+        return formatResponse(200, { 
+            success: true, 
+            amount: amount,
+            fee: feeFull,
+            newBalance: user.earnings,
+            user: user,
+            transaction: withdrawalTransaction,
+            message: `Saque de R$ ${truncateBRL(netBRLFull)} realizado com sucesso para ${user.withdrawal_method.method}.`
+        });
+    }
+    
     if (entity === 'streams') {
         // POST /api/streams - Create a new stream draft
         if (method === 'POST' && !id) {
@@ -1193,6 +1404,23 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                   return { status: 200, data: updatedStream };
               }
               return formatResponse(404, null, "Stream not found");
+            }
+
+            if (subEntity === 'quality' && method === 'PUT') {
+                const streamId = id;
+                const { quality } = body;
+                
+                if (!quality || !['240p', '360p', '480p', '720p', '1080p'].includes(quality)) {
+                    return { status: 400, error: 'Qualidade inválida. Use: 240p, 360p, 480p, 720p, 1080p' };
+                }
+                
+                if (streamIndex > -1) {
+                    db.streamers[streamIndex].quality = quality;
+                    saveDb();
+                    webSocketServerInstance.broadcast('qualityChanged', { streamId, quality });
+                    return { status: 200, data: { success: true, stream: db.streamers[streamIndex] } };
+                }
+                return formatResponse(404, null, "Stream not found");
             }
 
             if (subEntity === 'end-session' && method === 'POST') {
@@ -1318,6 +1546,77 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 }
                 return formatResponse(200, { success: true });
             }
+            
+            if (subEntity === 'access-check' && method === 'GET') {
+                const streamId = id;
+                const userId = url.searchParams.get('userId');
+                
+                if (!userId) {
+                    return { status: 400, error: 'User ID is required.' };
+                }
+                
+                const stream = db.streamers.find(s => s.id === streamId);
+                if (!stream) {
+                    return { status: 404, error: 'Stream not found.' };
+                }
+                
+                const user = db.users.get(userId);
+                if (!user) {
+                    return { status: 404, error: 'User not found.' };
+                }
+                
+                // Se não for privado, pode entrar
+                if (!stream.isPrivate) {
+                    return { status: 200, data: { canJoin: true } };
+                }
+                
+                // Verificar se o usuário tem permissão para entrar em stream privado
+                const isOwner = stream.hostId === userId;
+                const isVIP = user.isVIP;
+                const isFriend = db.following.get(stream.hostId)?.has(userId) || false;
+                const isFan = db.fans.get(stream.hostId)?.has(userId) || false;
+                
+                const canJoin = isOwner || isVIP || isFriend || isFan;
+                
+                return { status: 200, data: { canJoin } };
+            }
+            
+            if (subEntity === 'toggle-mic' && method === 'POST') {
+                const streamId = id;
+                const session = db.liveSessions.get(streamId);
+                if (session) {
+                    session.isMicrophoneMuted = !session.isMicrophoneMuted;
+                    db.liveSessions.set(streamId, session);
+                    saveDb();
+                    webSocketServerInstance.broadcast('micToggled', { streamId, isMuted: session.isMicrophoneMuted });
+                }
+                return formatResponse(200, {});
+            }
+            
+            if (subEntity === 'toggle-sound' && method === 'POST') {
+                const streamId = id;
+                const session = db.liveSessions.get(streamId);
+                if (session) {
+                    session.isStreamMuted = !session.isStreamMuted;
+                    db.liveSessions.set(streamId, session);
+                    saveDb();
+                    webSocketServerInstance.broadcast('soundToggled', { streamId, isMuted: session.isStreamMuted });
+                }
+                return formatResponse(200, {});
+            }
+            
+            if (subEntity === 'toggle-auto-follow' && method === 'POST') {
+                const streamId = id;
+                const { isEnabled } = body;
+                const session = db.liveSessions.get(streamId);
+                if (session) {
+                    session.isAutoFollowEnabled = isEnabled;
+                    db.liveSessions.set(streamId, session);
+                    saveDb();
+                    webSocketServerInstance.broadcast('autoFollowToggled', { streamId, isEnabled });
+                }
+                return formatResponse(200, {});
+            }
             if (subEntity === 'gifts' && method === 'GET') {
                 const streamId = id;
                 const session = db.liveSessions.get(streamId);
@@ -1362,10 +1661,62 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 return { status: 200, data: allGifts };
             }
             
+            if (subEntity === 'kick' && method === 'POST') {
+                const streamId = id;
+                const { userId, byUserId } = body;
+                
+                if (!userId || !byUserId) {
+                    return { status: 400, error: 'User ID and admin User ID are required' };
+                }
+                
+                const room = db.streamRooms.get(streamId);
+                if (room) {
+                    room.delete(userId);
+                    db.streamRooms.set(streamId, room);
+                    
+                    if (!db.kickedUsers.has(streamId)) {
+                        db.kickedUsers.set(streamId, new Set());
+                    }
+                    db.kickedUsers.get(streamId)!.add(userId);
+                    
+                    saveDb();
+                    webSocketServerInstance.broadcast('userKicked', { streamId, userId, byUserId });
+                }
+                
+                return { status: 200, data: { success: true } };
+            }
+            
+            if (subEntity === 'moderator' && method === 'POST') {
+                const streamId = id;
+                const { userId, byUserId } = body;
+                
+                if (!userId || !byUserId) {
+                    return { status: 400, error: 'User ID and admin User ID are required' };
+                }
+                
+                if (!db.moderators.has(streamId)) {
+                    db.moderators.set(streamId, new Set());
+                }
+                
+                const moderators = db.moderators.get(streamId)!;
+                if (moderators.has(userId)) {
+                    moderators.delete(userId);
+                } else {
+                    moderators.add(userId);
+                }
+                
+                db.moderators.set(streamId, moderators);
+                saveDb();
+                webSocketServerInstance.broadcast('moderatorToggled', { streamId, userId, isModerator: moderators.has(userId) });
+                
+                return { status: 200, data: { success: true } };
+            }
+            
             if (subEntity === 'gift' && method === 'POST') {
                 const streamId = id;
                 const { fromUserId, giftName, amount } = body;
                 const sender = db.users.get(fromUserId);
+                const stream = db.streamers.find(s => s.id === streamId);
                 const gift = db.gifts.find(g => g.name === giftName);
                 
                 if (!sender || !stream || !gift) return { status: 404, error: 'Sender, stream, or gift not found.' };
@@ -1576,6 +1927,21 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
     }
 
     if (entity === 'photos') {
+        if (id && subEntity === 'upload' && method === 'POST') {
+            // POST /api/photos/upload/:userId
+            const userId = id;
+            const { image } = body;
+            
+            if (!image) {
+                return { status: 400, error: 'Image data is required' };
+            }
+            
+            // Simula upload e retorna URL
+            const uploadedUrl = `https://picsum.photos/seed/upload_${Date.now()}/800/600`;
+            
+            return { status: 200, data: { url: uploadedUrl } };
+        }
+        
         if (id && subEntity === 'like' && method === 'POST') {
             const photoId = id;
             const userId = body.userId;
@@ -1656,31 +2022,6 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             const allMessages = Array.from(db.messages.values());
             const chatMessages = allMessages.filter(m => m.chatId === chatKey);
 
-            const friendRelationshipExists = db.following.get(CURRENT_USER_ID)?.has(otherUserId) && db.fans.get(CURRENT_USER_ID)?.has(otherUserId);
-            const systemNotificationKey = `system_notification_${chatKey}`;
-            let chatMetadata = db.chatMetadata.get(chatKey);
-
-            if (friendRelationshipExists && !chatMetadata?.systemNotificationSent) {
-                const systemMessage: Message = {
-                    id: systemNotificationKey,
-                    chatId: chatKey,
-                    from: 'system',
-                    to: 'system',
-                    text: 'Vocês agora são amigos!',
-                    timestamp: new Date().toISOString(),
-                    status: 'read',
-                    type: 'system-friend-notification',
-                    avatarUrl: '', // Default empty for system messages
-                    username: 'Sistema',
-                    badgeLevel: 0
-                };
-                if (!chatMessages.some(m => m.id === systemMessage.id)) {
-                    chatMessages.unshift(systemMessage);
-                }
-                db.chatMetadata.set(chatKey, { systemNotificationSent: true });
-                saveDb();
-            }
-            
             return { status: 200, data: chatMessages };
         }
         if (method === 'POST') {
@@ -1727,6 +2068,28 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             
             return { status: 201, data: newMessage };
         }
+    }
+    
+    if (entity === 'chats' && id && subEntity === 'mark-read' && method === 'POST') {
+        const { messageIds } = body;
+        const otherUserId = id;
+        
+        if (!messageIds || !Array.isArray(messageIds)) {
+            return { status: 400, error: 'Message IDs array is required' };
+        }
+        
+        messageIds.forEach(msgId => {
+            const message = db.messages.get(msgId);
+            if (message && message.to === CURRENT_USER_ID) {
+                message.status = 'read';
+                db.messages.set(msgId, message);
+            }
+        });
+        
+        saveDb();
+        webSocketServerInstance.broadcast('messagesRead', { userId: CURRENT_USER_ID, messageIds });
+        
+        return { status: 200, data: { success: true } };
     }
 
 
@@ -1791,6 +2154,246 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
       return { status: 200, data: db.gifts };
     }
 
+    // Music APIs
+    if (entity === 'music') {
+        if (method === 'GET' && !id) {
+            // GET /api/music - Biblioteca de músicas
+            const musicLibrary: MusicTrack[] = [
+                { id: 'music1', title: 'Summer Vibes', artist: 'DJ Sunshine', url: 'https://example.com/music1.mp3' },
+                { id: 'music2', title: 'Night Drive', artist: 'Neon Dreams', url: 'https://example.com/music2.mp3' },
+                { id: 'music3', title: 'Dance Floor', artist: 'Beat Master', url: 'https://example.com/music3.mp3' },
+                { id: 'music4', title: 'Chill Out', artist: 'Relax Zone', url: 'https://example.com/music4.mp3' },
+                { id: 'music5', title: 'Energy Boost', artist: 'Power Mix', url: 'https://example.com/music5.mp3' }
+            ];
+            return { status: 200, data: musicLibrary };
+        }
+        
+        if (id && subEntity === 'videos' && method === 'GET') {
+            // GET /api/music/:musicId/videos - Vídeos por música
+            const musicId = id;
+            const videosWithMusic = db.photoFeed.filter(photo => photo.musicId === musicId);
+            return { status: 200, data: videosWithMusic };
+        }
+    }
+
+    // PK Battle APIs
+    if (entity === 'pk') {
+        if (id === 'config' && method === 'GET') {
+            // GET /api/pk/config
+            return { status: 200, data: db.pkDefaultConfig };
+        }
+        
+        if (id === 'config' && method === 'POST') {
+            // POST /api/pk/config
+            const { duration } = body;
+            if (typeof duration !== 'number' || duration < 1 || duration > 30) {
+                return { status: 400, error: 'Duration must be between 1 and 30 minutes' };
+            }
+            db.pkDefaultConfig.duration = duration;
+            saveDb();
+            return { status: 200, data: { success: true, config: db.pkDefaultConfig } };
+        }
+        
+        if (id === 'start' && method === 'POST') {
+            // POST /api/pk/start
+            const { streamId, opponentId } = body;
+            const stream = db.streamers.find(s => s.id === streamId);
+            const opponent = db.streamers.find(s => s.hostId === opponentId);
+            
+            if (!stream || !opponent) {
+                return { status: 404, error: 'Stream or opponent not found' };
+            }
+            
+            const battleState: PKBattleState = {
+                opponentId: opponentId,
+                heartsA: 0,
+                heartsB: 0,
+                scoreA: 0,
+                scoreB: 0
+            };
+            
+            db.pkBattles.set(streamId, battleState);
+            saveDb();
+            
+            // Broadcast PK battle start
+            webSocketServerInstance.broadcast('pkBattleStarted', { streamId, opponentId });
+            
+            return { status: 200, data: { success: true } };
+        }
+        
+        if (id === 'end' && method === 'POST') {
+            // POST /api/pk/end
+            const { streamId } = body;
+            const battle = db.pkBattles.get(streamId);
+            
+            if (!battle) {
+                return { status: 404, error: 'PK Battle not found' };
+            }
+            
+            db.pkBattles.delete(streamId);
+            saveDb();
+            
+            // Broadcast PK battle end
+            webSocketServerInstance.broadcast('pkBattleEnded', { streamId, winner: battle.scoreA > battle.scoreB ? 'A' : 'B' });
+            
+            return { status: 200, data: { success: true } };
+        }
+        
+        if (id === 'heart' && method === 'POST') {
+            // POST /api/pk/heart
+            const { roomId, team } = body;
+            const battle = db.pkBattles.get(roomId);
+            
+            if (!battle) {
+                return { status: 404, error: 'PK Battle not found' };
+            }
+            
+            if (team === 'A') {
+                battle.heartsA++;
+            } else if (team === 'B') {
+                battle.heartsB++;
+            } else {
+                return { status: 400, error: 'Invalid team. Must be A or B' };
+            }
+            
+            db.pkBattles.set(roomId, battle);
+            saveDb();
+            
+            // Broadcast heart update
+            webSocketServerInstance.broadcast('pkHeartUpdate', { roomId, team, heartsA: battle.heartsA, heartsB: battle.heartsB });
+            
+            return { status: 200, data: { success: true } };
+        }
+    }
+
+    // Chat Permission APIs  
+    if (entity === 'chat-permission') {
+        if (id === 'status' && subEntity && method === 'GET') {
+            // GET /api/chat-permission/status/:userId
+            const userId = subEntity;
+            const user = db.users.get(userId);
+            if (!user) {
+                return { status: 404, error: 'User not found' };
+            }
+            return { status: 200, data: { permission: user.chatPermission || 'all' } };
+        }
+        
+        if (id === 'update' && subEntity && method === 'POST') {
+            // POST /api/chat-permission/update/:userId
+            const userId = subEntity;
+            const { permission } = body;
+            const user = db.users.get(userId);
+            
+            if (!user) {
+                return { status: 404, error: 'User not found' };
+            }
+            
+            if (!['all', 'followers', 'none'].includes(permission)) {
+                return { status: 400, error: 'Invalid permission. Must be all, followers, or none' };
+            }
+            
+            user.chatPermission = permission;
+            db.users.set(userId, user);
+            saveDb();
+            webSocketServerInstance.broadcastUserUpdate(user);
+            
+            return { status: 200, data: { success: true, user } };
+        }
+    }
+
+    // Settings APIs
+    if (entity === 'settings') {
+        if (id === 'pip' && subEntity === 'toggle' && method === 'POST') {
+            // POST /api/settings/pip/toggle/:userId
+            const userId = subEntity;
+            const { enabled } = body;
+            const user = db.users.get(userId);
+            
+            if (!user) {
+                return { status: 404, error: 'User not found' };
+            }
+            
+            user.pipEnabled = enabled;
+            db.users.set(userId, user);
+            saveDb();
+            webSocketServerInstance.broadcastUserUpdate(user);
+            
+            return { status: 200, data: { success: true, user } };
+        }
+        
+        if (id === 'private-stream' && subEntity && method === 'GET') {
+            // GET /api/settings/private-stream/:userId
+            const userId = subEntity;
+            const user = db.users.get(userId);
+            
+            if (!user) {
+                return { status: 404, error: 'User not found' };
+            }
+            
+            return { status: 200, data: { settings: user.privateStreamSettings } };
+        }
+        
+        if (id === 'private-stream' && subEntity && method === 'POST') {
+            // POST /api/settings/private-stream/:userId
+            const userId = subEntity;
+            const { settings } = body;
+            const user = db.users.get(userId);
+            
+            if (!user) {
+                return { status: 404, error: 'User not found' };
+            }
+            
+            user.privateStreamSettings = { ...user.privateStreamSettings, ...settings };
+            db.users.set(userId, user);
+            saveDb();
+            webSocketServerInstance.broadcastUserUpdate(user);
+            
+            return { status: 200, data: { success: true, user } };
+        }
+        
+        if (id === 'beauty' && subEntity && method === 'GET') {
+            // GET /api/settings/beauty/:userId
+            const userId = subEntity;
+            const beautySettings = db.beautySettings.get(userId);
+            
+            if (!beautySettings) {
+                return { status: 404, error: 'Beauty settings not found' };
+            }
+            
+            return { status: 200, data: beautySettings };
+        }
+        
+        if (id === 'beauty' && subEntity && method === 'POST') {
+            // POST /api/settings/beauty/:userId
+            const userId = subEntity;
+            const settings = body;
+            
+            db.beautySettings.set(userId, settings);
+            saveDb();
+            
+            return { status: 200, data: { success: true } };
+        }
+        
+        if (id === 'gift-notifications' && subEntity && method === 'GET') {
+            // GET /api/settings/gift-notifications/:userId
+            const userId = subEntity;
+            const settings = db.giftNotificationSettings.get(userId) || {};
+            
+            return { status: 200, data: { settings } };
+        }
+        
+        if (id === 'gift-notifications' && subEntity && method === 'POST') {
+            // POST /api/settings/gift-notifications/:userId
+            const userId = subEntity;
+            const { settings } = body;
+            
+            db.giftNotificationSettings.set(userId, settings);
+            saveDb();
+            
+            return { status: 200, data: { success: true } };
+        }
+    }
+
     if (entity === 'visitors' && id === 'list' && subEntity && method === 'GET') {
       const userId = subEntity;
       const visits = db.visits.get(userId) || [];
@@ -1813,6 +2416,35 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
     }
 
     if (entity === 'effects') {
+        if (id === 'purchase' && subEntity && method === 'POST') { // POST /api/effects/purchase/:userId
+            const userId = subEntity;
+            const { giftId } = body;
+            const user = db.users.get(userId);
+            const gift = db.gifts.find(g => g.name === giftId);
+
+            if (!user || !gift) return { status: 404, error: "Usuário ou presente não encontrado." };
+            if (user.diamonds < (gift.price || 0)) return { status: 400, error: "Diamantes insuficientes." };
+
+            const giftPrice = gift.price || 0;
+            user.diamonds -= giftPrice;
+            
+            // Adiciona aos presentes recebidos
+            const received = db.receivedGifts.get(userId) || [];
+            const existingGiftIndex = received.findIndex(g => g.name === gift.name);
+            if (existingGiftIndex > -1) {
+                received[existingGiftIndex].count += 1;
+            } else {
+                received.push({ ...gift, count: 1 });
+            }
+            db.receivedGifts.set(userId, received);
+
+            db.users.set(userId, user);
+            saveDb();
+            webSocketServerInstance.broadcastUserUpdate(user);
+
+            return { status: 200, data: { success: true, user } };
+        }
+        
         if (id === 'purchase-frame' && subEntity && method === 'POST') { // POST /api/effects/purchase-frame/:userId
             const userId = subEntity;
             const { frameId } = body;
@@ -2009,6 +2641,233 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             return { status: 404, error: "Battle not found" };
         }
 
+    }
+
+    // --- Ranking ---
+    if (entity === 'ranking' && id && method === 'GET') {
+        const period = id as 'daily' | 'weekly' | 'monthly';
+        
+        // Simula ranking baseado em contribuição de presentes
+        const allUsers = Array.from(db.users.values());
+        const rankedUsers: RankedUser[] = allUsers
+            .filter(user => user.diamonds > 0) // Apenas usuários com diamantes
+            .map(user => ({
+                ...user,
+                contribution: user.diamonds,
+                gender: user.gender || 'not_specified',
+                age: user.age || 25
+            }))
+            .sort((a, b) => b.contribution - a.contribution)
+            .slice(0, 50); // Top 50
+        
+        return formatResponse(200, rankedUsers);
+    }
+
+    // --- Presentes ---
+    if (entity === 'gifts' && method === 'GET') {
+        return formatResponse(200, db.gifts);
+    }
+
+    // --- Música ---
+    if (entity === 'music') {
+        if (method === 'GET') {
+            if (!id) {
+                // GET /api/music - Biblioteca de músicas
+                return formatResponse(200, (db as any).musicLibrary || []);
+            }
+            if (subEntity === 'videos' && method === 'GET') {
+                // GET /api/music/:musicId/videos
+                const musicId = id;
+                const videos = db.photoFeed.filter(photo => photo.musicId === musicId);
+                return formatResponse(200, videos);
+            }
+        }
+    }
+
+    // --- Regiões ---
+    if (entity === 'regions' && method === 'GET') {
+        const countries = [
+            { name: 'Brasil', code: 'br' },
+            { name: 'Estados Unidos', code: 'us' },
+            { name: 'Argentina', code: 'ar' },
+            { name: 'México', code: 'mx' },
+            { name: 'Colômbia', code: 'co' },
+            { name: 'Chile', code: 'cl' },
+            { name: 'Peru', code: 'pe' },
+            { name: 'Uruguai', code: 'uy' }
+        ];
+        return formatResponse(200, countries);
+    }
+
+    // --- Lembretes ---
+    if (entity === 'reminders' && method === 'GET') {
+        // Simula streamers para lembretes
+        const reminderStreamers = Array.from(db.users.values())
+            .filter(user => user.isLive)
+            .slice(0, 10);
+        return formatResponse(200, reminderStreamers);
+    }
+
+    // --- Histórico de Streams ---
+    if (entity === 'history' && id === 'streams') {
+        if (method === 'GET') {
+            return formatResponse(200, db.streamHistory);
+        }
+        if (method === 'POST') {
+            const entry: StreamHistoryEntry = body;
+            db.streamHistory.unshift(entry);
+            saveDb();
+            return formatResponse(200, { success: true });
+        }
+    }
+
+    // --- Compras ---
+    if (entity === 'purchases' && id === 'history' && subEntity && method === 'GET') {
+        const userId = subEntity;
+        const { requestingUserId } = body;
+        
+        // Verificação de permissão
+        if (userId !== CURRENT_USER_ID && !isAdmin(CURRENT_USER_ID)) {
+            return formatResponse(403, null, "Acesso negado.");
+        }
+        
+        const purchases = db.purchases.filter(p => p.userId === userId);
+        return formatResponse(200, purchases.sort((a, b) => 
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        ));
+    }
+
+    // --- Visitantes ---
+    if (entity === 'visitors') {
+        if (id === 'list' && subEntity && method === 'GET') {
+            const userId = subEntity;
+            const visits = db.visits.get(userId) || [];
+            const visitorsData: Visitor[] = visits.map(visit => {
+                const visitor = db.users.get(visit.visitorId);
+                return visitor ? { ...visitor, visitTimestamp: visit.timestamp } : null;
+            }).filter(Boolean);
+            return formatResponse(200, visitorsData);
+        }
+        
+        if (id === 'clear' && subEntity && method === 'DELETE') {
+            const userId = subEntity;
+            if (userId !== CURRENT_USER_ID && !isAdmin(CURRENT_USER_ID)) {
+                return formatResponse(403, null, "Acesso negado.");
+            }
+            db.visits.delete(userId);
+            saveDb();
+            return formatResponse(200, { success: true });
+        }
+    }
+
+    // --- Efeitos e VIP ---
+    if (entity === 'effects') {
+        if (id === 'purchase' && subEntity && method === 'POST') {
+            const userId = subEntity;
+            const { giftId } = body;
+            
+            const user = db.users.get(userId);
+            const gift = db.gifts.find(g => g.name === giftId);
+            
+            if (!user || !gift) {
+                return formatResponse(404, null, "Usuário ou presente não encontrado.");
+            }
+            
+            if (user.diamonds < (gift.price || 0)) {
+                return formatResponse(400, null, "Diamantes insuficientes.");
+            }
+            
+            user.diamonds -= (gift.price || 0);
+            db.users.set(userId, user);
+            saveDb();
+            
+            return formatResponse(200, { success: true, user });
+        }
+        
+        if (id === 'purchase-frame' && subEntity && method === 'POST') {
+            const userId = subEntity;
+            const { frameId } = body;
+            
+            const user = db.users.get(userId);
+            const frame = avatarFrames.find(f => f.id === frameId);
+            
+            if (!user || !frame) {
+                return formatResponse(404, null, "Usuário ou moldura não encontrada.");
+            }
+            
+            if (user.diamonds < frame.price) {
+                return formatResponse(400, null, "Diamantes insuficientes.");
+            }
+            
+            user.diamonds -= frame.price;
+            if (!user.ownedFrames) user.ownedFrames = [];
+            user.ownedFrames.push({
+                frameId,
+                expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 dias
+            });
+            
+            db.users.set(userId, user);
+            saveDb();
+            
+            return formatResponse(200, { success: true, user });
+        }
+    }
+
+    if (entity === 'vip') {
+        if (method === 'POST' && id === 'subscribe' && pathParts[3]) {
+            const userId = pathParts[3];
+            const user = db.users.get(userId);
+            
+            if (!user) {
+                return formatResponse(404, null, "Usuário não encontrado.");
+            }
+            
+            const vipPrice = 100; // 100 diamantes por mês
+            
+            if (user.diamonds < vipPrice) {
+                return formatResponse(400, null, "Diamantes insuficientes para VIP.");
+            }
+            
+            user.diamonds -= vipPrice;
+            user.isVIP = true;
+            user.vipSince = new Date().toISOString();
+            user.vipExpirationDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+            
+            db.users.set(userId, user);
+            saveDb();
+            
+            return formatResponse(200, { success: true, user });
+        }
+    }
+
+    // --- Set Active Frame ---
+    if (entity === 'users' && id && subEntity === 'set-active-frame' && method === 'POST') {
+        const userId = id;
+        const { frameId } = body;
+        
+        if (userId !== CURRENT_USER_ID && !isAdmin(CURRENT_USER_ID)) {
+            return formatResponse(403, null, "Acesso negado.");
+        }
+        
+        const user = db.users.get(userId);
+        if (!user) {
+            return formatResponse(404, null, "Usuário não encontrado.");
+        }
+        
+        // Verificar se o usuário possui a moldura
+        if (frameId && user.ownedFrames) {
+            const ownedFrame = user.ownedFrames.find(f => f.frameId === frameId);
+            if (!ownedFrame || new Date(ownedFrame.expirationDate) < new Date()) {
+                return formatResponse(400, null, "Você não possui esta moldura ou ela expirou.");
+            }
+        }
+        
+        user.activeFrameId = frameId;
+        db.users.set(userId, user);
+        saveDb();
+        webSocketServerInstance.broadcastUserUpdate(user);
+        
+        return formatResponse(200, { success: true, user });
     }
 
     // ==============================================
@@ -2280,7 +3139,7 @@ if (method === 'GET' && path === '/api/feed/photos') {
             return formatResponse(200, userPhotos);
         } catch (error) {
             console.error('Erro ao buscar fotos do usuário:', error);
-            return formatResponse(500, null, 'Erro ao buscar fotos do usuário');
+            return { status: 500, error: 'Erro ao buscar fotos do usuário' };
         }
     }
 
@@ -2289,8 +3148,8 @@ if (method === 'GET' && path === '/api/feed/photos') {
     console.error(`[API MOCK] ${errorMessage}`);
     return formatResponse(404, null, errorMessage);
     
-} catch (e) {
+  } catch (e) {
     console.error(`[API MOCK] Error processing ${method} ${path}:`, e);
     return formatResponse(500, null, 'Erro interno do servidor');
-}
+  }
 };
