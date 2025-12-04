@@ -1,6 +1,6 @@
 
 import { db, CURRENT_USER_ID, createChatKey, saveDb, levelProgression, avatarFrames } from './database';
-import { User, Streamer, Message, RankedUser, Gift, Conversation, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, NotificationSettings, BeautySettings, LevelInfo, Comment, MusicTrack } from '../types';
+import { User, Streamer, Message, RankedUser, Gift, Conversation, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, NotificationSettings, BeautySettings, LevelInfo, Comment, MusicTrack, Wallet } from '../types';
 import { webSocketServerInstance } from './websocket';
 
 /**
@@ -82,6 +82,20 @@ function calculateGrossBRL(diamonds: number): number {
   return diamonds * rate;
 }
 
+/**
+ * Verifica se um usuário tem permissão de administrador
+ * @param userId ID do usuário a ser verificado
+ * @returns true se o usuário for administrador, false caso contrário
+ */
+function isAdmin(userId: string): boolean {
+    const ADMIN_IDS = [
+        '10755083', // ID do dono
+        process.env.VITE_ADMIN_USER_ID // ID adicional de variável de ambiente
+    ].filter(Boolean);
+    
+    return ADMIN_IDS.includes(userId);
+}
+
 // --- NEW HELPER FUNCTION TO HANDLE LEVEL-UPS ---
 const updateUserLevel = (user: User): User => {
     if (user.xp === undefined) user.xp = 0;
@@ -130,49 +144,153 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
 
     if (entity === 'admin') {
         if (id === 'withdrawal-method' && method === 'POST') {
+            // Verifica se o usuário atual é administrador
+            if (!isAdmin(CURRENT_USER_ID)) {
+                return formatResponse(403, null, "Acesso negado. Permissão de administrador necessária.");
+            }
+
+            // Validação do email
+            if (!body.email || typeof body.email !== 'string' || !body.email.includes('@')) {
+                return formatResponse(400, null, "Email inválido. Forneça um email válido.");
+            }
+
             const adminUser = db.users.get(CURRENT_USER_ID);
             if (adminUser) {
-                adminUser.adminWithdrawalMethod = { email: body.email };
+                adminUser.adminWithdrawalMethod = { email: body.email.trim() };
                 db.users.set(CURRENT_USER_ID, adminUser);
                 saveDb();
-                return formatResponse(200, { success: true, user: adminUser });
+                webSocketServerInstance.broadcastUserUpdate(adminUser);
+                return formatResponse(200, { 
+                    success: true, 
+                    user: adminUser,
+                    message: `Método de saque configurado com sucesso para ${body.email.trim()}`
+                });
             }
-            return formatResponse(404, null, "Admin user not found.");
+            return formatResponse(404, null, "Usuário administrador não encontrado.");
         }
         if (id === 'withdraw' && method === 'POST') {
+            // Verifica se o usuário atual é administrador
+            if (!isAdmin(CURRENT_USER_ID)) {
+                return formatResponse(403, null, "Acesso negado. Permissão de administrador necessária.");
+            }
+
             const adminUser = db.users.get(CURRENT_USER_ID);
             const platformBalance = db.platform_earnings;
-            if (adminUser && platformBalance > 0) {
-                const transaction: PurchaseRecord = {
-                    id: `admin_withdraw_${Date.now()}`,
-                    userId: CURRENT_USER_ID,
-                    type: 'withdraw_platform_earnings',
-                    description: `Saque da Plataforma para ${adminUser.adminWithdrawalMethod?.email}`,
-                    amountBRL: truncateBRL(platformBalance),
-                    amountCoins: 0,
-                    status: 'Concluído',
-                    timestamp: new Date().toISOString()
-                };
-                db.purchases.unshift(transaction);
-                db.platform_earnings = 0; // Reset platform earnings
-                
-                // Update the user object in the DB before broadcasting
-                adminUser.platformEarnings = 0;
-                db.users.set(CURRENT_USER_ID, adminUser);
-                saveDb();
-
-                webSocketServerInstance.broadcastUserUpdate(adminUser);
-                return { status: 200, data: { success: true, message: `Saque de R$ ${transaction.amountBRL.toFixed(2)} solicitado.` } };
+            
+            // Verifica se o usuário administrador existe
+            if (!adminUser) {
+                return formatResponse(404, null, "Usuário administrador não encontrado.");
             }
-            return { status: 400, error: "No balance to withdraw or admin user not found." };
+            
+            // Verifica se o método de saque está configurado
+            if (!adminUser.adminWithdrawalMethod?.email) {
+                return formatResponse(400, null, "Método de saque não configurado. Configure um email antes de solicitar saque.");
+            }
+            
+            // Verifica se há saldo disponível para saque
+            if (platformBalance <= 0) {
+                return formatResponse(400, null, "Não há saldo disponível para saque.");
+            }
+
+            const transaction: PurchaseRecord = {
+                id: `admin_withdraw_${Date.now()}`,
+                userId: CURRENT_USER_ID,
+                type: 'withdraw_platform_earnings',
+                description: `Saque da Plataforma para ${adminUser.adminWithdrawalMethod.email}`,
+                amountBRL: truncateBRL(platformBalance),
+                amountCoins: 0,
+                status: 'Concluído',
+                timestamp: new Date().toISOString(),
+            };
+
+            // Adiciona a transação ao banco de dados
+            db.purchases.unshift(transaction);
+            db.platform_earnings = 0; // Reset platform earnings
+            
+            // Update the user object in the DB before broadcasting
+            adminUser.platformEarnings = 0;
+            db.users.set(CURRENT_USER_ID, adminUser);
+            saveDb();
+
+            webSocketServerInstance.broadcastUserUpdate(adminUser);
+            return formatResponse(200, { 
+                success: true, 
+                message: `Saque de R$ ${transaction.amountBRL.toFixed(2)} realizado com sucesso para ${adminUser.adminWithdrawalMethod.email}.`,
+                transaction: transaction
+            });
         }
         if (id === 'history' && method === 'GET') {
-            const status = url.searchParams.get('status');
-            let history = db.purchases.filter(p => p.type === 'withdraw_platform_earnings');
-            if (status && status !== 'all') {
+            // Verifica se o usuário atual é administrador
+            if (!isAdmin(CURRENT_USER_ID)) {
+                return formatResponse(403, null, "Acesso negado. Permissão de administrador necessária.");
+            }
+
+            const status = url.searchParams.get('status') as 'all' | 'Concluído' | 'Pendente' | 'Cancelado' || 'all';
+            
+            // Filtra apenas transações de saque da plataforma e taxas administrativas
+            let history = db.purchases.filter(p => 
+                p.type === 'withdraw_platform_earnings' || 
+                (p.isAdminTransaction && p.type === 'admin_fee')
+            );
+
+            // Filtra por status se não for 'all'
+            if (status !== 'all') {
                 history = history.filter(p => p.status === status);
             }
-            return { status: 200, data: history };
+
+            // Ordena do mais recente para o mais antigo
+            history.sort((a, b) => 
+                new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+            );
+
+            return formatResponse(200, history);
+        }
+    }
+
+    if (entity === 'wallets') {
+        if (id && subEntity === 'block-unauthorized-access' && method === 'POST') {
+            const walletId = id;
+            
+            // Verifica se o usuário atual é administrador
+            if (!isAdmin(CURRENT_USER_ID)) {
+                return formatResponse(403, null, "Acesso negado. Permissão de administrador necessária.");
+            }
+
+            // Verifica se a wallet existe
+            let wallet = db.wallets.get(walletId);
+            if (!wallet) {
+                // Se não existe, cria uma nova wallet
+                wallet = {
+                    id: walletId,
+                    userId: walletId, // Assumimos que walletId é o userId
+                    isBlocked: false,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                db.wallets.set(walletId, wallet);
+            }
+
+            // Bloqueia a wallet
+            wallet.isBlocked = true;
+            wallet.blockedAt = new Date().toISOString();
+            wallet.blockedBy = CURRENT_USER_ID;
+            wallet.blockReason = body.reason || 'Acesso não autorizado detectado';
+            wallet.updatedAt = new Date().toISOString();
+
+            // Salva no banco de dados
+            saveDb();
+
+            // Broadcast da atualização
+            webSocketServerInstance.broadcastUserUpdate({
+                id: wallet.userId,
+                walletBlocked: true
+            } as any);
+
+            return formatResponse(200, {
+                success: true,
+                wallet: wallet,
+                message: `Wallet ${walletId} bloqueada com sucesso.`
+            });
         }
     }
 
@@ -749,45 +867,89 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
     if (entity === 'earnings') {
       if (id === 'get' && subEntity) { // GET /api/earnings/get/:userId
         const userId = subEntity;
-        const user = db.users.get(userId);
-        if (user) {
-          const available_diamonds = user.earnings;
-          const gross_brl_full = calculateGrossBRL(available_diamonds);
-          const platform_fee_brl_full = gross_brl_full * 0.20;
-          const net_brl_full = gross_brl_full - platform_fee_brl_full;
-          
-          return { status: 200, data: { 
-              available_diamonds, 
-              gross_brl: truncateBRL(gross_brl_full), 
-              platform_fee_brl: truncateBRL(platform_fee_brl_full), 
-              net_brl: truncateBRL(net_brl_full) 
-          }};
+        
+        // Verificação de permissão: usuário só pode ver seus próprios ganhos, exceto admin
+        if (userId !== CURRENT_USER_ID && !isAdmin(CURRENT_USER_ID)) {
+            return formatResponse(403, null, "Acesso negado. Você só pode visualizar seus próprios ganhos.");
         }
-        return { status: 404, error: "User not found" };
+        
+        const user = db.users.get(userId);
+        if (!user) {
+            return formatResponse(404, null, "Usuário não encontrado.");
+        }
+        
+        const available_diamonds = user.earnings || 0;
+        const gross_brl_full = calculateGrossBRL(available_diamonds);
+        const platform_fee_brl_full = gross_brl_full * 0.20;
+        const net_brl_full = gross_brl_full - platform_fee_brl_full;
+        
+        return formatResponse(200, { 
+            available_diamonds, 
+            gross_brl: truncateBRL(gross_brl_full), 
+            platform_fee_brl: truncateBRL(platform_fee_brl_full), 
+            net_brl: truncateBRL(net_brl_full),
+            // Informações adicionais para admin
+            ...(isAdmin(CURRENT_USER_ID) && {
+                total_withdrawn: user.earnings_withdrawn || 0,
+                platform_earnings: db.platform_earnings || 0,
+                admin_earnings: user.adminEarnings || 0
+            })
+        });
       }
       if (id === 'calculate' && method === 'POST') { // POST /api/earnings/calculate
         const amount = body.amount;
-        if (typeof amount !== 'number' || amount < 0) {
-          return { status: 400, error: 'Invalid amount' };
+        
+        // Validação do valor
+        if (typeof amount !== 'number' || amount < 0 || !Number.isFinite(amount)) {
+          return formatResponse(400, null, 'Valor inválido. Forneça um número válido maior ou igual a zero.');
         }
+        
+        // Validação de valor máximo (proteção contra valores absurdos)
+        if (amount > 1000000) {
+          return formatResponse(400, null, 'Valor muito alto. O máximo permitido é 1.000.000 diamantes.');
+        }
+        
         const gross_value_full = calculateGrossBRL(amount);
         const platform_fee_full = gross_value_full * 0.20;
         const net_value_full = gross_value_full - platform_fee_full;
 
-        return { status: 200, data: { 
+        return formatResponse(200, { 
             gross_value: truncateBRL(gross_value_full), 
             platform_fee: truncateBRL(platform_fee_full), 
-            net_value: truncateBRL(net_value_full) 
-        }};
+            net_value: truncateBRL(net_value_full),
+            // Informações adicionais
+            amount_diamonds: amount,
+            fee_percentage: 20
+        });
       }
       if (id === 'withdraw' && subEntity && method === 'POST') { // POST /api/earnings/withdraw/:userId
         const userId = subEntity;
         const amount = body.amount; // amount in diamonds
         const user = db.users.get(userId);
 
-        if (!user) return { status: 404, error: "User not found" };
-        if (!user.withdrawal_method) return { status: 400, error: "Método de saque não configurado."};
-        if (user.earnings < amount) return { status: 400, error: "Saldo de ganhos insuficiente."};
+        // Verificação de permissão: usuário só pode sacar seus próprios ganhos, exceto admin
+        if (userId !== CURRENT_USER_ID && !isAdmin(CURRENT_USER_ID)) {
+            return formatResponse(403, null, "Acesso negado. Você só pode realizar saques de sua própria conta.");
+        }
+
+        if (!user) return formatResponse(404, null, "Usuário não encontrado.");
+        
+        // Validação do valor
+        if (typeof amount !== 'number' || amount <= 0 || !Number.isFinite(amount)) {
+            return formatResponse(400, null, "Valor de saque inválido. Forneça um número válido maior que zero.");
+        }
+        
+        // Validação de valor mínimo e máximo
+        if (amount < 100) {
+            return formatResponse(400, null, "Valor mínimo de saque é 100 diamantes.");
+        }
+        
+        if (amount > 1000000) {
+            return formatResponse(400, null, "Valor máximo de saque é 1.000.000 diamantes.");
+        }
+        
+        if (!user.withdrawal_method) return formatResponse(400, null, "Método de saque não configurado. Configure um método de saque antes de solicitar.");
+        if ((user.earnings || 0) < amount) return formatResponse(400, null, "Saldo de ganhos insuficiente para este saque.");
         
         const grossBRLFull = calculateGrossBRL(amount);
         const feeFull = grossBRLFull * 0.20; // platform fee
@@ -855,18 +1017,56 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             });
         }
 
-        // Return success with the updated user
-        return { status: 200, data: { success: true, user } };
+        // Return success with detailed information
+        return formatResponse(200, { 
+            success: true, 
+            user: user,
+            transaction: withdrawalTransaction,
+            message: `Saque de R$ ${truncateBRL(netBRLFull)} realizado com sucesso para ${user.withdrawal_method.method}.`,
+            withdrawal_details: {
+                amount_diamonds: amount,
+                gross_value_brl: truncateBRL(grossBRLFull),
+                platform_fee_brl: truncateBRL(feeFull),
+                net_value_brl: truncateBRL(netBRLFull),
+                fee_percentage: 20
+            }
+        });
       }
        if (id === 'method' && subEntity === 'set' && pathParts[4] && method === 'POST') {
           const userId = pathParts[4];
-          const user = db.users.get(userId);
-          if (user) {
-              user.withdrawal_method = { method: body.method, details: body.details };
-              saveDb();
-              return { status: 200, data: { success: true, user } };
+          
+          // Verificação de permissão: usuário só pode configurar seu próprio método, exceto admin
+          if (userId !== CURRENT_USER_ID && !isAdmin(CURRENT_USER_ID)) {
+              return formatResponse(403, null, "Acesso negado. Você só pode configurar seu próprio método de saque.");
           }
-          return { status: 404, error: "User not found" };
+          
+          const user = db.users.get(userId);
+          if (!user) {
+              return formatResponse(404, null, "Usuário não encontrado.");
+          }
+          
+          // Validação dos dados
+          if (!body.method || typeof body.method !== 'string' || body.method.trim().length === 0) {
+              return formatResponse(400, null, "Método de saque inválido. Forneça um método válido.");
+          }
+          
+          if (!body.details || typeof body.details !== 'object') {
+              return formatResponse(400, null, "Detalhes do método inválidos. Forneça os detalhes corretos.");
+          }
+          
+          user.withdrawal_method = { 
+              method: body.method.trim(), 
+              details: body.details 
+          };
+          
+          saveDb();
+          webSocketServerInstance.broadcastUserUpdate(user);
+          
+          return formatResponse(200, { 
+              success: true, 
+              user: user,
+              message: `Método de saque configurado com sucesso: ${body.method.trim()}`
+          });
       }
     }
     

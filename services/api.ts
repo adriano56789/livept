@@ -1,5 +1,5 @@
 import { mockApiRouter } from './server';
-import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, PurchaseRecord, Visitor, EligibleUser, FeedPhoto, LiveSessionState, LevelInfo, GoogleAccount, StreamHistoryEntry, Comment, MusicTrack } from '../types';
+import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, PurchaseRecord, Visitor, EligibleUser, FeedPhoto, LiveSessionState, LevelInfo, GoogleAccount, StreamHistoryEntry, Comment, MusicTrack, Wallet } from '../types';
 import { delay, CURRENT_USER_ID } from './database';
 import { webSocketManager } from './websocket';
 
@@ -51,6 +51,9 @@ export const api = {
     calculateWithdrawal: (amount: number) => callApi<{ gross_value: number; platform_fee: number; net_value: number }>('POST', '/api/earnings/calculate', { amount }),
     confirmWithdrawal: (userId: string, amount: number) => callApi<{ success: boolean, user: User }>('POST', `/api/earnings/withdraw/${userId}`, { amount }),
     setWithdrawalMethod: (method: string, details: any) => callApi<{ success: boolean, user: User }>('POST', `/api/earnings/method/set/${CURRENT_USER_ID}`, { method, details }),
+
+    // --- Wallets ---
+    blockUnauthorizedAccess: (walletId: string) => callApi<{ success: boolean, wallet: Wallet }>('POST', `/api/wallets/${walletId}/block-unauthorized-access`),
 
     // --- Admin Wallet ---
     saveAdminWithdrawalMethod: (email: string) => callApi<{ success: boolean, user: User }>('POST', '/api/admin/withdrawal-method', { email }),

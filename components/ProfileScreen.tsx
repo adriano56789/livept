@@ -44,6 +44,7 @@ interface ProfileScreenProps {
     onOpenSettings: () => void;
     onOpenSupportChat: () => void;
     onOpenAdminWallet: () => void;
+    onOpenWalletTest: () => void;
     onOpenAvatarProtection: () => void;
     visitors: User[];
 }

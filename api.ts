@@ -48,6 +48,7 @@ export const api = {
     getPurchaseHistory: (userId: string) => callApi<PurchaseRecord[]>('GET', `/api/purchases/history/${userId}`),
     getEarningsInfo: (userId: string) => callApi<{ available_diamonds: number; gross_brl: number; platform_fee_brl: number; net_brl: number; }>('GET', `/api/earnings/get/${userId}`),
     calculateWithdrawal: (amount: number) => callApi<{ gross_value: number; platform_fee: number; net_value: number }>('POST', '/api/earnings/calculate', { amount }),
+    blockUnauthorizedWalletAccess: (walletId: string) => callApi<{ success: boolean, message: string }>('POST', `/api/wallets/${walletId}/block-unauthorized-access`),
     requestWithdrawal: (userId: string, amount: number) => callApi<{ success: boolean; amount: number; fee: number; newBalance: number }>('POST', '/api/withdraw', { userId, amount }),
     
     // --- Admin Wallet ---

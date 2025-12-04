@@ -15,6 +15,10 @@ export interface User {
   isVerified?: boolean;
   isFollowing?: boolean;
   isBlocked?: boolean;
+  blockReason?: string;
+  isAdmin?: boolean;
+  adminEarnings?: number;
+  platformEarnings?: number;
   followers?: string[];
   followersCount?: number;
   following?: string[];

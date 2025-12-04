@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
+
+// Security configuration
+const SECURITY_LOGGING = process.env.NODE_ENV !== 'production'; // Only log in development
 import { BackIcon, BankIcon, EnvelopeIcon, PencilIcon, DocumentTextIcon, CheckCircleIcon, ClockIcon, MinusCircleIcon } from './icons';
 import { User, ToastType, PurchaseRecord } from '../types';
 import { api } from '../services/api';
 import { LoadingSpinner } from './Loading';
+import { logSecurityViolation, isDeviceBlocked, blockDevice } from '../src/utils/deviceSecurity';
 // Removido useNavigate desnecessário
 
 // IDs com permissão de administrador (incluindo o dono)
@@ -116,6 +120,27 @@ function AdminWalletScreen({
     updateUser = () => console.warn('updateUser não fornecido'),
     addToast = (type: ToastType, message: string) => console.log(`[Toast ${type}]: ${message}`)
 }: AdminWalletScreenProps) {
+    // Enhanced security logging and access control
+    useEffect(() => {
+        if (isOpen) {
+            if (SECURITY_LOGGING) {
+                console.log('[Security] Acesso à carteira administrativa:', {
+                    timestamp: new Date().toISOString(),
+                    userId: currentUser?.id,
+                    isAdmin: ADMIN_IDS.includes(currentUser?.id || ''),
+                    userAgent: navigator.userAgent
+                });
+            }
+            
+            // Immediate close if not admin
+            if (!ADMIN_IDS.includes(currentUser?.id || '')) {
+                console.warn('[Security] Tentativa de acesso não autorizado à carteira administrativa');
+                addToast(ToastType.Error, 'Acesso não autorizado');
+                onClose();
+                return;
+            }
+        }
+    }, [isOpen, currentUser?.id, onClose, addToast]);
 
     console.log('[AdminWalletScreen] Renderizando com props:', { 
         isOpen, 
@@ -135,13 +160,41 @@ function AdminWalletScreen({
     // Verificação segura de admin - usando useMemo para evitar recálculos desnecessários
     const isAdmin = useMemo(() => {
         const admin = currentUser?.id ? ADMIN_IDS.includes(currentUser.id) : false;
-        console.log('[AdminWalletScreen] Verificação de admin:', { 
-            userId: currentUser?.id, 
-            isAdmin: admin,
-            adminIds: ADMIN_IDS 
-        });
+        if (SECURITY_LOGGING) {
+            console.log('[AdminWalletScreen] Verificação de admin:', { 
+                timestamp: new Date().toISOString(),
+                userId: currentUser?.id, 
+                isAdmin: admin,
+                adminIds: ADMIN_IDS 
+            });
+        }
         return admin;
     }, [currentUser?.id]);
+
+    // Verifica se o dispositivo está bloqueado
+    useEffect(() => {
+        if (isDeviceBlocked()) {
+            console.warn('[Security] Dispositivo bloqueado - Tentativa de acesso negada');
+            window.location.href = '/blocked';
+            return;
+        }
+    }, []);
+
+    // Bloqueia qualquer operação se o usuário não for admin
+    useEffect(() => {
+        if (!isAdmin && isOpen) {
+            const violationDetails = {
+                userId: currentUser?.id,
+                attemptedAccess: 'AdminWalletScreen',
+                timestamp: new Date().toISOString()
+            };
+            
+            console.warn('[Security] Acesso negado - Usuário não é administrador', violationDetails);
+            logSecurityViolation('Tentativa de acesso não autorizado à área de administração', violationDetails);
+            addToast(ToastType.Error, 'Acesso restrito a administradores');
+            onClose();
+        }
+    }, [isAdmin, isOpen, onClose, addToast, currentUser?.id]);
 
     // Efeito para validação de permissões e gerenciamento do estado do modal
     useEffect(() => {

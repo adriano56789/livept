@@ -329,3 +329,14 @@ export interface StreamHistoryEntry {
   startTime: number;
   endTime: number;
 }
+
+export interface Wallet {
+  id: string;
+  userId: string;
+  isBlocked: boolean;
+  blockedAt?: string;
+  blockedBy?: string;
+  blockReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}

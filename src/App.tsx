@@ -64,6 +64,7 @@ import LiveHistoryScreen from '../components/LiveHistoryScreen';
 import AdminWalletScreen from '../components/AdminWalletScreen';
 import VIPCenterScreen from '../components/VIPCenterScreen';
 import PrivateInviteModal from '../components/PrivateInviteModal';
+import WalletTest from '../components/WalletTest';
 
 // Importando componentes de pastas específicas
 import EndStreamConfirmationModal from '../components/live/EndStreamConfirmationModal';
@@ -142,6 +143,7 @@ const AppContent: React.FC = () => {
   const [isFanClubMembersModalOpen, setIsFanClubMembersModalOpen] = useState(false);
   const [fanClubMembers, setFanClubMembers] = useState<User[]>([]);
   const [viewingFanClubStreamer, setViewingFanClubStreamer] = useState<User | null>(null);
+  const [isWalletTestOpen, setIsWalletTestOpen] = useState(false);
     
   const [streamers, setStreamers] = useState<Streamer[]>([]);
   const [isLoadingStreamers, setIsLoadingStreamers] = useState(true);
@@ -1233,12 +1235,13 @@ const handleDenyLocation = async () => {
                     onOpenSettings={() => setIsSettingsScreenOpen(true)}
                     onOpenSupportChat={() => api.getAllUsers().then(users => setChattingWith(users.find(u => u.id === 'support-livercore')))}
                     onOpenAdminWallet={() => {
-                      if (currentUser?.id === 'SEU_ID_DE_USUARIO') {
+                      if (currentUser?.id === '10755083' || currentUser?.id === import.meta.env.VITE_ADMIN_USER_ID) {
                         setIsAdminWalletOpen(true);
                       } else {
                         addToast(ToastType.Error, 'Acesso não autorizado.');
                       }
                     }}
+                    onOpenWalletTest={() => setIsWalletTestOpen(true)}
                     visitors={visitors}
                     onOpenAvatarProtection={() => setIsAvatarProtectionScreenOpen(true)}
                 />
@@ -1302,6 +1305,11 @@ const handleDenyLocation = async () => {
           </div>
         ))}
       </div>
+
+      {/* Modal de teste de wallet */}
+      {isWalletTestOpen && (
+        <WalletTest onClose={() => setIsWalletTestOpen(false)} />
+      )}
     </div>
   );
 };
