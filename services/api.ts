@@ -53,6 +53,10 @@ export const api = {
     setWithdrawalMethod: (method: string, details: any) => callApi<{ success: boolean, user: User }>('POST', `/api/earnings/method/set/${CURRENT_USER_ID}`, { method, details }),
 
     // --- Wallets ---
+    getWallet: (userId: string) => callApi<Wallet>('GET', `/api/wallets/${userId}`),
+    createWallet: (userId: string, initialBalance?: number) => callApi<{ success: boolean, wallet: Wallet }>('POST', `/api/wallets/${userId}`, { initialBalance }),
+    updateWallet: (userId: string, updates: Partial<Wallet>) => callApi<{ success: boolean, wallet: Wallet }>('PUT', `/api/wallets/${userId}`, updates),
+    deleteWallet: (userId: string) => callApi<{ success: boolean }>('DELETE', `/api/wallets/${userId}`),
     blockUnauthorizedAccess: (walletId: string) => callApi<{ success: boolean, wallet: Wallet }>('POST', `/api/wallets/${walletId}/block-unauthorized-access`),
 
     // --- Admin Wallet ---
@@ -162,6 +166,12 @@ export const api = {
 
     // --- Fan Club ---
     getFanClubMembers: (streamerId: string) => callApi<User[]>('GET', `/api/fanclub/${streamerId}/members`),
+
+    // --- Data Management ---
+    saveData: (entity: string, data: any) => callApi<{ success: boolean, id?: string }>('POST', `/api/data/${entity}`, data),
+    getData: (entity: string, filters?: any) => callApi<any[]>('GET', `/api/data/${entity}`, filters),
+    updateData: (entity: string, id: string, data: any) => callApi<{ success: boolean }>('PUT', `/api/data/${entity}/${id}`, data),
+    deleteData: (entity: string, id: string) => callApi<{ success: boolean }>('DELETE', `/api/data/${entity}/${id}`),
 };
 export function sendGift(userId: string, roomId: string, id: string, quantity: number) {
     throw new Error('Function not implemented.');

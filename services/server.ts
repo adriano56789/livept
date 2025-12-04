@@ -90,7 +90,8 @@ function calculateGrossBRL(diamonds: number): number {
 function isAdmin(userId: string): boolean {
     const ADMIN_IDS = [
         '10755083', // ID do dono
-        process.env.VITE_ADMIN_USER_ID // ID adicional de variável de ambiente
+        // Adicionar ID de ambiente apenas se disponível
+        ...(typeof window !== 'undefined' && (window as any).VITE_ADMIN_USER_ID ? [(window as any).VITE_ADMIN_USER_ID] : [])
     ].filter(Boolean);
     
     return ADMIN_IDS.includes(userId);
@@ -130,6 +131,86 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
         const allUsers = Array.from(db.users.values());
         const members = allUsers.filter(u => u.fanClub?.streamerId === streamerId);
         return formatResponse(200, members);
+    }
+
+    // --- Data Management Routes ---
+    if (entity === 'data' && id) {
+        const entityType = id;
+        
+        if (method === 'POST') {
+            // Salvar dados
+            const newId = `${entityType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const dataWithId = { ...body, id: newId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+            
+            // Inicializa o array da entidade se não existir
+            if (!db[entityType]) {
+                db[entityType] = [];
+            }
+            
+            // Adiciona os dados ao banco
+            db[entityType].push(dataWithId);
+            saveDb();
+            
+            return formatResponse(201, { success: true, id: newId, data: dataWithId });
+        }
+        
+        if (method === 'GET') {
+            // Buscar dados
+            let data = db[entityType] || [];
+            
+            // Aplicar filtros se fornecidos
+            if (body && Object.keys(body).length > 0) {
+                data = data.filter(item => {
+                    return Object.keys(body).every(key => {
+                        if (typeof body[key] === 'string' && body[key].includes('*')) {
+                            // Suporte a wildcards
+                            const pattern = body[key].replace(/\*/g, '.*');
+                            const regex = new RegExp(pattern, 'i');
+                            return regex.test(item[key]);
+                        }
+                        return item[key] === body[key];
+                    });
+                });
+            }
+            
+            return formatResponse(200, data);
+        }
+        
+        if (subEntity && method === 'PUT') {
+            // Atualizar dados
+            const dataId = subEntity;
+            const dataArray = db[entityType] || [];
+            const index = dataArray.findIndex(item => item.id === dataId);
+            
+            if (index === -1) {
+                return formatResponse(404, null, `Registro com ID ${dataId} não encontrado na entidade ${entityType}`);
+            }
+            
+            // Atualiza o registro
+            dataArray[index] = { ...dataArray[index], ...body, updatedAt: new Date().toISOString() };
+            db[entityType] = dataArray;
+            saveDb();
+            
+            return formatResponse(200, { success: true, data: dataArray[index] });
+        }
+        
+        if (subEntity && method === 'DELETE') {
+            // Deletar dados
+            const dataId = subEntity;
+            const dataArray = db[entityType] || [];
+            const index = dataArray.findIndex(item => item.id === dataId);
+            
+            if (index === -1) {
+                return formatResponse(404, null, `Registro com ID ${dataId} não encontrado na entidade ${entityType}`);
+            }
+            
+            // Remove o registro
+            dataArray.splice(index, 1);
+            db[entityType] = dataArray;
+            saveDb();
+            
+            return formatResponse(200, { success: true });
+        }
     }
 
     if (entity === 'translate' && method === 'POST') {
