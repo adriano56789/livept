@@ -1,7 +1,6 @@
 import { mockApiRouter } from './server';
 import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, PurchaseRecord, Visitor, EligibleUser, FeedPhoto, LiveSessionState, LevelInfo, GoogleAccount, StreamHistoryEntry, Comment, MusicTrack, Wallet } from '../types';
 import { delay, CURRENT_USER_ID } from './database';
-import { webSocketManager } from './websocket';
 
 const callApi = async <T>(method: string, path: string, body?: any): Promise<T> => {
     await delay(Math.random() * 150 + 50); // Simulate network latency
@@ -115,8 +114,8 @@ export const api = {
     completeQuickFriendTask: (friendId: string) => callApi<{ success: boolean; friend: any }>('POST', `/api/pk/coapresentador/complete/${friendId}`),
     
     // --- Live Moderation ---
-    kickUser: (roomId: string, userId: string, byUserId: string) => webSocketManager.sendKickRequest(roomId, userId, byUserId),
-    makeModerator: (roomId: string, userId: string, byUserId: string) => webSocketManager.sendModeratorRequest(roomId, userId, byUserId),
+    kickUser: (roomId: string, userId: string, byUserId: string) => callApi<{ success: boolean }>('POST', `/api/streams/${roomId}/kick`, { userId, byUserId }),
+    makeModerator: (roomId: string, userId: string, byUserId: string) => callApi<{ success: boolean }>('POST', `/api/streams/${roomId}/moderator`, { userId, byUserId }),
 
     // --- Live Settings ---
     updateVideoQuality: (streamId: string, quality: string) => callApi<{ success: true, stream: Streamer }>('PUT', `/api/streams/${streamId}/quality`, { quality }),
@@ -132,7 +131,7 @@ export const api = {
     // --- Chat ---
     getChatMessages: (otherUserId: string) => callApi<Message[]>('GET', `/api/chats/${otherUserId}/messages`),
     sendChatMessage: (from: string, to: string, text: string, imageUrl?: string, tempId?: string) => callApi<Message>('POST', `/api/chats/${to}/messages`, { fromUserId: from, text, imageUrl, tempId }),
-    markMessagesAsRead: (messageIds: string[], otherUserId: string) => webSocketManager.markAsRead(messageIds, otherUserId),
+    markMessagesAsRead: (messageIds: string[], otherUserId: string) => callApi<{ success: boolean }>('POST', `/api/chats/${otherUserId}/mark-read`, { messageIds }),
 
     // --- Permissions & Privacy ---
     getAvatarProtectionStatus: (userId: string) => callApi<{ isEnabled: boolean }>('GET', `/api/avatar/protection/status/${userId}`),

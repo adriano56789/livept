@@ -384,9 +384,9 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 db.users.set(CURRENT_USER_ID, user);
                 saveDb();
                 webSocketServerInstance.broadcastUserUpdate(user); // Notify others
-                return { status: 200, data: { success: true, user } };
+                return formatResponse(200, { success: true, user });
             }
-            return { status: 404, error: 'User not found' };
+            return formatResponse(404, null, 'User not found');
         }
     }
 
@@ -395,17 +395,17 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
         // This endpoint is no longer used for withdrawals but is kept for potential other integrations.
         const { transactionId, status } = body;
         console.log(`[Webhook] Received update for transaction ${transactionId} with status ${status}`);
-        return { status: 200, data: { success: true } };
+        return formatResponse(200, { success: true });
       }
     }
     
     if (entity === 'accounts') {
         if (id === 'google') {
             if (method === 'GET' && !subEntity) {
-                return { status: 200, data: db.googleAccounts };
+                return formatResponse(200, db.googleAccounts);
             }
             if (method === 'GET' && subEntity === 'connected') {
-                return { status: 200, data: db.userConnectedAccounts.get(CURRENT_USER_ID)?.google || [] };
+                return formatResponse(200, db.userConnectedAccounts.get(CURRENT_USER_ID)?.google || []);
             }
             if (method === 'POST' && subEntity === 'disconnect') {
                 const accounts = db.userConnectedAccounts.get(CURRENT_USER_ID);
@@ -413,7 +413,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                     accounts.google = accounts.google.filter(acc => acc.email !== body.email);
                     saveDb();
                 }
-                return { status: 200, data: { success: true } };
+                return formatResponse(200, { success: true });
             }
         }
     }
@@ -423,9 +423,9 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             const userId = pathParts[4];
             const user = db.users.get(userId);
             if (user) {
-                return { status: 200, data: { isEnabled: user.isAvatarProtected || false } };
+                return formatResponse(200, { isEnabled: user.isAvatarProtected || false });
             }
-            return { status: 404, error: "User not found" };
+            return formatResponse(404, null, "User not found");
         }
         if (id === 'protection' && pathParts[3] === 'toggle' && pathParts[4] && method === 'POST') {
             const userId = pathParts[4];
@@ -437,7 +437,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 webSocketServerInstance.broadcastUserUpdate(user);
                 return { status: 200, data: { success: true, user } };
             }
-            return { status: 404, error: "User not found" };
+            return formatResponse(404, null, "User not found");
         }
     }
 
@@ -447,17 +447,17 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             if (method === 'GET') {
                 const settings = db.notificationSettings.get(userId);
                 if (settings) {
-                    return { status: 200, data: settings };
+                    return formatResponse(200, settings);
                 }
                 const defaultSettings: NotificationSettings = { newMessages: true, streamerLive: true, followedPosts: false, pedido: true, interactive: true };
-                return { status: 200, data: defaultSettings };
+                return formatResponse(200, defaultSettings);
             }
             if (method === 'POST') {
                 const currentSettings = db.notificationSettings.get(userId) || { newMessages: true, streamerLive: true, followedPosts: false, pedido: true, interactive: true };
                 const newSettings = { ...currentSettings, ...body };
                 db.notificationSettings.set(userId, newSettings);
                 saveDb();
-                return { status: 200, data: { settings: newSettings } };
+                return formatResponse(200, { settings: newSettings });
             }
         }
     }
@@ -468,7 +468,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             const user = db.users.get(userId);
             if (user) {
                 if (method === 'GET') {
-                    return { status: 200, data: { settings: user.privateStreamSettings } };
+                    return formatResponse(200, { settings: user.privateStreamSettings });
                 }
                 if (method === 'POST') {
                     user.privateStreamSettings = { ...(user.privateStreamSettings || {}), ...body.settings };
@@ -478,7 +478,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                     return { status: 200, data: { success: true, user } };
                 }
             }
-            return { status: 404, error: "User not found" };
+            return formatResponse(404, null, "User not found");
         }
         if (id === 'gift-notifications' && subEntity) { // subEntity is userId
             const userId = subEntity;
@@ -496,20 +496,20 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             if (method === 'POST') {
                 db.giftNotificationSettings.set(userId, body.settings);
                 saveDb();
-                return { status: 200, data: { success: true } };
+                return formatResponse(200, { success: true });
             }
         }
         if (id === 'beauty' && subEntity) { // subEntity is userId
             const userId = subEntity;
             if (method === 'GET') {
                 const settings = db.beautySettings.get(userId);
-                if (settings) return { status: 200, data: settings };
+                if (settings) return formatResponse(200, settings);
                 return { status: 200, data: {} };
             }
             if (method === 'POST') {
                 db.beautySettings.set(userId, body.settings);
                 saveDb();
-                return { status: 200, data: { success: true } };
+                return formatResponse(200, { success: true });
             }
         }
     }
@@ -558,17 +558,17 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                     break;
             }
             
-            return { status: 200, data: filteredStreamers };
+            return formatResponse(200, filteredStreamers);
         }
     }
     
     if (entity === 'users') {
         if (id === 'me' && subEntity === 'blocklist' && method === 'GET') {
             const user = db.users.get(CURRENT_USER_ID);
-            if (!user) return { status: 401, error: "Unauthorized" };
+            if (!user) return formatResponse(401, null, "Unauthorized");
             const blockedIds = db.blocklist.get(CURRENT_USER_ID) || new Set<string>();
             const blockedUsers = Array.from(blockedIds).map(id => db.users.get(id)).filter((u): u is User => !!u);
-            return { status: 200, data: blockedUsers };
+            return formatResponse(200, blockedUsers);
         }
 
         if (id === 'me' && !subEntity) {
@@ -576,10 +576,10 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             if (user) {
                 user.platformEarnings = db.platform_earnings;
             }
-            return { status: 200, data: user };
+            return formatResponse(200, user);
         }
         if (method === 'GET' && !id) {
-            return { status: 200, data: Array.from(db.users.values()) };
+            return formatResponse(200, Array.from(db.users.values()));
         }
         if (id) {
             if (subEntity === 'block' && method === 'POST') {
@@ -597,7 +597,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 db.fans.get(blockerId)?.delete(blockedId);
                 
                 saveDb();
-                return { status: 200, data: { success: true } };
+                return formatResponse(200, { success: true });
             }
     
             if (subEntity === 'unblock' && method === 'DELETE') {
@@ -605,7 +605,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 const unblockedId = id;
                 db.blocklist.get(blockerId)?.delete(unblockedId);
                 saveDb();
-                return { status: 200, data: { success: true } };
+                return formatResponse(200, { success: true });
             }
 
             if (subEntity === 'report' && method === 'POST') {
@@ -619,13 +619,13 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 db.reports.push({ reporterId, reportedId, reason, timestamp: new Date().toISOString() });
                 saveDb();
                 
-                return { status: 200, data: { success: true } };
+                return formatResponse(200, { success: true });
             }
 
             if (method === 'DELETE') {
                 db.users.delete(id);
                 saveDb();
-                return { status: 200, data: { success: true } };
+                return formatResponse(200, { success: true });
             }
             if (method === 'PATCH') {
                 const user = db.users.get(id);
@@ -803,7 +803,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 return { status: 200, data: feedWithLikes };
              }
              if (subEntity === 'level-info') {
-                if (!user) return { status: 404, error: 'User not found' };
+                if (!user) return formatResponse(404, null, 'User not found');
                 const currentLevelInfo = levelProgression[user.level - 1] || levelProgression[0];
                 const nextLevelInfo = levelProgression[user.level];
                 const info: LevelInfo = {
@@ -884,7 +884,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
              if (subEntity === 'set-active-frame' && method === 'POST') {
                 const { frameId } = body;
                 const user = db.users.get(id);
-                if (!user) return { status: 404, error: "User not found." };
+                if (!user) return formatResponse(404, null, "User not found.");
                 
                 // If frameId is null, we are unequipping
                 if (frameId === null) {
@@ -907,10 +907,10 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                     return { status: 200, data: { success: true, user } };
                 }
                 
-                return { status: 400, error: "Você não possui esta moldura ou ela expirou." };
+                return formatResponse(400, null, "Você não possui esta moldura ou ela expirou.");
             }
 
-             if(method === 'GET' && !subEntity) return { status: 200, data: user };
+             if(method === 'GET' && !subEntity) return formatResponse(200, user);
         }
     }
     
@@ -1155,7 +1155,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
         // POST /api/streams - Create a new stream draft
         if (method === 'POST' && !id) {
             const host = db.users.get(CURRENT_USER_ID);
-            if (!host) return { status: 401, error: "Current user not found to create a stream." };
+            if (!host) return formatResponse(401, null, "Current user not found to create a stream.");
 
             const newStream: Streamer = {
                 id: `stream_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
@@ -1192,11 +1192,11 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                   saveDb();
                   return { status: 200, data: updatedStream };
               }
-              return { status: 404, error: "Stream not found" };
+              return formatResponse(404, null, "Stream not found");
             }
 
             if (subEntity === 'end-session' && method === 'POST') {
-                if (!stream) return { status: 404, error: "Stream not found" };
+                if (!stream) return formatResponse(404, null, "Stream not found");
     
                 const host = db.users.get(stream.hostId);
                 if (!host) return { status: 404, error: "Host not found" };
@@ -1219,7 +1219,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 return { status: 200, data: { success: true, user: host } };
             }
 
-            if (!stream) return { status: 404, error: "Stream not found" };
+            if (!stream) return formatResponse(404, null, "Stream not found");
 
             if (subEntity === 'online-users' && method === 'GET') {
                 const streamId = id;
@@ -1279,7 +1279,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                     users: usersWithValue 
                 });
 
-                return { status: 200, data: { success: true } };
+                return formatResponse(200, { success: true });
             }
             if (subEntity === 'save' && method === 'POST') {
                 Object.assign(stream, body);
@@ -1302,7 +1302,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                     db.liveSessions.set(streamId, session);
                     saveDb();
                     webSocketServerInstance.broadcastAutoInviteStateUpdate(streamId, isEnabled);
-                    return { status: 200, data: { success: true } };
+                    return formatResponse(200, { success: true });
                 }
                 return { status: 404, error: 'Live session not found.' };
             }
@@ -1316,7 +1316,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                 if (stream) {
                     webSocketServerInstance.sendPrivateInvite(userId, { stream });
                 }
-                return { status: 200, data: { success: true } };
+                return formatResponse(200, { success: true });
             }
             if (subEntity === 'gifts' && method === 'GET') {
                 const streamId = id;
@@ -1625,7 +1625,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             }
             if (method === 'POST') {
                 const user = db.users.get(body.userId);
-                if (!user) return { status: 404, error: 'User not found' };
+                if (!user) return formatResponse(404, null, 'User not found');
 
                 const newComment = {
                     id: `comment_${Date.now()}`,
@@ -1809,7 +1809,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
         const userId = subEntity;
         db.visits.set(userId, []);
         saveDb();
-        return { status: 200, data: { success: true } };
+        return formatResponse(200, { success: true });
     }
 
     if (entity === 'effects') {
@@ -1873,7 +1873,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
         const user = db.users.get(userId);
         
         if (!user) {
-            return { status: 404, error: 'User not found' };
+            return formatResponse(404, null, 'User not found');
         }
 
         // Check if user already has VIP
@@ -1984,14 +1984,14 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
             saveDb();
             // In a real app, you would also notify the opponent.
             // The client handles UI change optimistically.
-            return { status: 200, data: { success: true } };
+            return formatResponse(200, { success: true });
         }
 
         if (id === 'end' && method === 'POST') {
             const { streamId } = body;
             db.pkBattles.delete(streamId);
             saveDb();
-            return { status: 200, data: { success: true } };
+            return formatResponse(200, { success: true });
         }
         
         if (id === 'heart' && method === 'POST') {
@@ -2004,7 +2004,7 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
                     battle.heartsB++;
                 }
                 webSocketServerInstance.broadcastPKHeartUpdate(roomId, battle.heartsA, battle.heartsB);
-                return { status: 200, data: { success: true } };
+                return formatResponse(200, { success: true });
             }
             return { status: 404, error: "Battle not found" };
         }

@@ -19,8 +19,12 @@
     "backgroundColor": "#FFFFFF",
     "icon": "resources/icon.png",
     "splash": {
-      "drawable": "splash",
-      "backgroundColor": "#FFFFFF"
+      "image": "resources/splash.png",
+      "backgroundColor": "#FFFFFF",
+      "androidScaleType": "CENTER_CROP",
+      "androidSplashResourceName": "splash",
+      "androidSplashFullScreen": true,
+      "androidSplashImmersive": true
     },
     "buildOptions": {
       "keystorePath": "",
