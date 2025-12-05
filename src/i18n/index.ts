@@ -45,7 +45,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
   }, []);
 
   if (!ready) return null;
-  return React.createElement(React.Fragment, null, children);
+  return React.createElement(React.Fragment, null,    children);
 };
 
 export const useTranslation = () => {
