@@ -142,12 +142,6 @@ function AdminWalletScreen({
         }
     }, [isOpen, currentUser?.id, onClose, addToast]);
 
-    console.log('[AdminWalletScreen] Renderizando com props:', { 
-        isOpen, 
-        currentUserId: currentUser?.id, 
-        adminIds: ADMIN_IDS 
-    });
-
     // Estados
     const [email, setEmail] = useState('');
     const [isEditingEmail, setIsEditingEmail] = useState(false);
@@ -157,88 +151,67 @@ function AdminWalletScreen({
     const [isLoadingHistory, setIsLoadingHistory] = useState(true);
     const [filter, setFilter] = useState<FilterType>('all');
 
-    // Verificação segura de admin - usando useMemo para evitar recálculos desnecessários
+    // Verificação de admin otimizada
     const isAdmin = useMemo(() => {
-        const admin = currentUser?.id ? ADMIN_IDS.includes(currentUser.id) : false;
-        if (SECURITY_LOGGING) {
-            console.log('[AdminWalletScreen] Verificação de admin:', { 
-                timestamp: new Date().toISOString(),
-                userId: currentUser?.id, 
-                isAdmin: admin,
-                adminIds: ADMIN_IDS 
-            });
-        }
-        return admin;
+        if (!currentUser?.id) return false;
+        return ADMIN_IDS.includes(currentUser.id);
     }, [currentUser?.id]);
 
-    // Verifica se o dispositivo está bloqueado
+    // Efeito único para verificação de segurança e permissões
     useEffect(() => {
-        if (isDeviceBlocked()) {
-            console.warn('[Security] Dispositivo bloqueado - Tentativa de acesso negada');
-            window.location.href = '/blocked';
-            return;
-        }
-    }, []);
-
-    // Bloqueia qualquer operação se o usuário não for admin
-    useEffect(() => {
-        if (!isAdmin && isOpen) {
-            const violationDetails = {
-                userId: currentUser?.id,
-                attemptedAccess: 'AdminWalletScreen',
-                timestamp: new Date().toISOString()
-            };
-            
-            console.warn('[Security] Acesso negado - Usuário não é administrador', violationDetails);
-            logSecurityViolation('Tentativa de acesso não autorizado à área de administração', violationDetails);
-            addToast(ToastType.Error, 'Acesso restrito a administradores');
-            onClose();
-        }
-    }, [isAdmin, isOpen, onClose, addToast, currentUser?.id]);
-
-    // Efeito para validação de permissões e gerenciamento do estado do modal
-    useEffect(() => {
-        console.log('[AdminWalletScreen] Efeito de permissões - Estado atual:', {
-            isOpen,
-            isAdmin,
-            hasUserId: !!currentUser?.id
-        });
-
-        if (!isOpen) {
-            console.log('[AdminWalletScreen] Modal não está aberto, pulando validação');
-            return;
-        }
+        if (!isOpen) return;
         
-        try {
-            if (!currentUser?.id) {
-                throw new Error('Usuário não autenticado ou sem ID');
+        const checkAccess = async () => {
+            // Verifica se o dispositivo está bloqueado
+            if (isDeviceBlocked()) {
+                if (SECURITY_LOGGING) {
+                    console.warn('[Security] Dispositivo bloqueado - Tentativa de acesso negada');
+                }
+                window.location.href = '/blocked';
+                return;
             }
             
+            // Verifica se o usuário é admin
             if (!isAdmin) {
-                console.warn('[AdminWalletScreen] Acesso negado - ID não está na lista de administradores:', {
-                    userId: currentUser.id,
-                    adminIds: ADMIN_IDS
-                });
-                addToast(ToastType.Error, 'Acesso restrito a administradores.');
+                const violationDetails = {
+                    userId: currentUser?.id,
+                    attemptedAccess: 'AdminWalletScreen',
+                    timestamp: new Date().toISOString()
+                };
+                
+                if (SECURITY_LOGGING) {
+                    console.warn('[Security] Acesso negado - Usuário não é administrador', violationDetails);
+                }
+                
+                logSecurityViolation('Tentativa de acesso não autorizado à área de administração', violationDetails);
+                addToast(ToastType.Error, 'Acesso restrito a administradores');
                 onClose();
                 return;
             }
             
-            console.log('[AdminWalletScreen] Acesso concedido ao admin:', currentUser.id);
-            
-            // Carrega o e-mail salvo quando o modal é aberto e o usuário é admin
-            const savedEmail = currentUser?.adminWithdrawalMethod?.email || '';
-            console.log('[AdminWalletScreen] E-mail recuperado:', savedEmail || 'nenhum e-mail salvo');
-            
-            setEmail(savedEmail);
-            setIsEditingEmail(!savedEmail);
-            
-        } catch (error) {
-            console.error('[AdminWalletScreen] Erro na validação de permissões:', error);
-            addToast(ToastType.Error, 'Erro ao verificar permissões.');
-            onClose();
-        }
-    }, [isOpen, isAdmin, currentUser, onClose, addToast]);
+            // Log de acesso seguro apenas em desenvolvimento
+            if (SECURITY_LOGGING && process.env.NODE_ENV === 'development') {
+                console.log('[Security] Acesso à carteira administrativa:', {
+                    timestamp: new Date().toISOString(),
+                    userId: currentUser?.id,
+                    isAdmin: true,
+                    userAgent: navigator.userAgent
+                });
+            }
+        };
+        
+        checkAccess();
+    }, [isOpen, isAdmin, currentUser?.id, onClose, addToast]);
+
+    // Carrega os dados do usuário quando o modal é aberto
+    useEffect(() => {
+        if (!isOpen || !currentUser?.id) return;
+        
+        // Carrega o e-mail salvo quando o modal é aberto
+        const savedEmail = currentUser?.adminWithdrawalMethod?.email || '';
+        setEmail(savedEmail);
+        setIsEditingEmail(!savedEmail);
+    }, [isOpen, currentUser?.id, currentUser?.adminWithdrawalMethod?.email]);
     
     // Efeito para carregar o histórico de saques quando o modal estiver aberto e o filtro mudar
     useEffect(() => {

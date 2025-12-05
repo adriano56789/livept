@@ -1884,6 +1884,33 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
         }
     }
 
+    // SIM Status API
+    if (entity === 'sim' && id === 'status' && method === 'POST') {
+        const { isOnline } = body;
+        const user = db.users.get(CURRENT_USER_ID);
+        
+        if (!user) {
+            return { status: 404, error: 'User not found' };
+        }
+        
+        // Update user's online status
+        user.isOnline = isOnline;
+        user.lastSeen = new Date().toISOString();
+        
+        // Save changes to the database
+        db.users.set(CURRENT_USER_ID, user);
+        saveDb();
+        
+        // Notify connected clients about the status change
+        webSocketServerInstance.broadcast('userStatusChanged', {
+            userId: CURRENT_USER_ID,
+            isOnline,
+            lastSeen: user.lastSeen
+        });
+        
+        return { status: 200, data: { success: true, user } };
+    }
+    
     // Settings APIs
     if (entity === 'settings') {
         if (id === 'pip' && subEntity === 'toggle' && method === 'POST') {
@@ -2230,18 +2257,50 @@ export const mockApiRouter = (method: string, path: string, body?: any): ApiResp
     if (entity === 'ranking' && id && method === 'GET') {
         const period = id as 'daily' | 'weekly' | 'monthly';
         
-        // Simula ranking baseado em contribuição de presentes
+        // Obtém todos os usuários
         const allUsers = Array.from(db.users.values());
-        const rankedUsers: RankedUser[] = allUsers
-            .filter(user => user.diamonds > 0) // Apenas usuários com diamantes
-            .map(user => ({
-                ...user,
-                contribution: user.diamonds,
-                gender: user.gender || 'not_specified',
-                age: user.age || 25
-            }))
-            .sort((a, b) => b.contribution - a.contribution)
-            .slice(0, 50); // Top 50
+        
+        // Filtra e mapeia os usuários com base no período
+        let rankedUsers: RankedUser[] = [];
+        
+        if (period === 'monthly') {
+            // Para o ranking mensal, podemos usar os diamantes totais ou outro critério
+            rankedUsers = allUsers
+                .filter(user => user.diamonds > 0)
+                .map(user => ({
+                    ...user,
+                    contribution: user.diamonds, // Ou outro critério para ranking mensal
+                    gender: (user.gender as 'male' | 'female' | 'not_specified') || 'not_specified',
+                    age: user.age || 25,
+                    // Adiciona informações específicas para o ranking mensal
+                    period: 'monthly' as const,
+                    position: 0 // Será preenchido após a ordenação
+                }))
+                .sort((a, b) => b.contribution - a.contribution)
+                .map((user, index) => ({
+                    ...user,
+                    position: index + 1
+                }))
+                .slice(0, 100); // Top 100 do ranking mensal
+        } else {
+            // Lógica para outros períodos (daily, weekly)
+            rankedUsers = allUsers
+                .filter(user => user.diamonds > 0)
+                .map(user => ({
+                    ...user,
+                    contribution: user.diamonds,
+                    gender: (user.gender as 'male' | 'female' | 'not_specified') || 'not_specified',
+                    age: user.age || 25,
+                    period: period as 'daily' | 'weekly' | 'monthly',
+                    position: 0
+                }))
+                .sort((a, b) => b.contribution - a.contribution)
+                .map((user, index) => ({
+                    ...user,
+                    position: index + 1
+                }))
+                .slice(0, 50);
+        }
         
         return formatResponse(200, rankedUsers);
     }
@@ -2615,7 +2674,7 @@ if (method === 'POST' && path === '/api/live/start') {
     console.log(`🔹 [MOCK API] ${new Date().toISOString()} - POST ${path} recebido`);
     console.log('   Dados recebidos:', JSON.stringify(body, null, 2));
     try {
-        // Simula início de transmissão
+        // Simula início de transmissão 
         const liveData = {
             streamId: `stream_${Date.now()}`,
             rtmpUrl: 'rtmp://mock-server/live',
