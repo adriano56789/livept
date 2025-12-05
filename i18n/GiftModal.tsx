@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Gift, User } from '../../types';
-import { YellowDiamondIcon, CheckIcon, LockIcon } from '../icons';
-import { useTranslation } from '../../i18n';
+import { Gift, User } from '../types';
+import { YellowDiamondIcon, CheckIcon, LockIcon } from '../components/icons';
+import { useTranslation } from '../i18n';
 
 interface GiftModalProps {
     isOpen: boolean;
@@ -227,7 +227,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
                     <footer className="flex-shrink-0 p-3 border-t border-gray-700 flex flex-col space-y-3">
                         <div className="flex items-center justify-between">
                             <div className="text-xs text-gray-400">
-                                {selectedGift ? t('gifts.canSend', { count: maxCanSend }) : t('gifts.selectGift')}
+                                {selectedGift ? t('gifts.canSend').replace('{count}', maxCanSend.toString()) : t('gifts.selectGift')}
                             </div>
                             <button 
                                 onClick={handleSend} 

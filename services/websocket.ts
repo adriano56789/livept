@@ -1,6 +1,5 @@
 
 import * as database from './database';
-import * as api from './api';
 import { Message, User, Gift, Streamer, EligibleUser, PurchaseRecord } from '../types';
 
 // Safe database accessor function
@@ -633,8 +632,8 @@ class WebSocketManager extends EventEmitter {
         if (!this.isConnected || !this.userId) return false;
         
         try {
-            // Apenas notifica os clientes via WebSocket
-            // A lógica de negócio deve ser tratada na API
+            // Presente na tela → WebSocket (notificação em tempo real)
+            // Presente no chat/mensagem → API/back-end (lógica de negócio)
             webSocketServerInstance.handleMessage(this.userId, { 
                 type: 'sendStreamGift', 
                 payload: { roomId, gift, quantity } 
