@@ -330,6 +330,17 @@ export interface StreamHistoryEntry {
   endTime: number;
 }
 
+export interface Translation {
+  id: string;
+  originalText: string;
+  translatedText: string;
+  sourceLang: string;
+  targetLang: string;
+  userId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Wallet {
   id: string;
   userId: string;

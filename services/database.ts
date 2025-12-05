@@ -1,5 +1,23 @@
 import React from 'react';
 import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, LevelInfo, Comment, MusicTrack, Wallet } from '../types';
+
+export interface TranslationCache {
+  id: string;
+  originalText: string;
+  targetLang: string;
+  translatedText: string;
+  createdAt: Date;
+  lastAccessed: Date;
+}
+
+export interface TranslationCache {
+  id: string;
+  originalText: string;
+  targetLang: string;
+  translatedText: string;
+  createdAt: Date;
+  lastAccessed: Date;
+}
 import {
     RocketGiftIcon,
     PrivateJetGiftIcon,
@@ -683,8 +701,10 @@ const constructInitialDb = () => {
         userConnectedAccounts,
         quickCompleteFriends: new Map([[CURRENT_USER_ID, quickCompleteFriendsData]]),
         wallets: new Map<string, Wallet>(),
+        translationCache: [] as TranslationCache[],
     };
 };
+
 
 type LiveGoDB = ReturnType<typeof constructInitialDb>;
 

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { LanguageProvider, useTranslation } from './i18n';
+import { LanguageProvider, useTranslation } from './i18n/i18n';
 
 // Importando serviços
 import { api } from '../services/api';

@@ -126,13 +126,73 @@ interface PKBattleState {
 }
 
 // Main router function
-export const mockApiRouter = (method: string, path: string, body?: any): ApiResponse => {
+export const mockApiRouter = async (method: string, path: string, body?: any): Promise<ApiResponse> => {
   console.log(`[API MOCK] ${method} ${path}`, body ? 'with body' : '');
   const url = new URL(path, 'http://localhost:3000'); // Base URL doesn't matter, just for parsing
   const pathParts = url.pathname.split('/').filter(p => p);
   const entity = pathParts[1];
   const id = pathParts[2];
   const subEntity = pathParts[3];
+
+  // Rota de tradução
+  if (path === '/api/translate' && method === 'POST') {
+    try {
+      const { text, targetLang, sourceLang } = body;
+      
+      if (!text || !targetLang) {
+        return formatResponse(400, null, 'Text and target language are required');
+      }
+
+      // Importa o serviço de tradução dinamicamente para evitar carregamento desnecessário
+      const { translateText } = await import('./translationService');
+      
+      // Se for um array, processa em lote
+      if (Array.isArray(text)) {
+        const results = await Promise.all(
+          text.map(async (item: string) => {
+            try {
+              const result = await translateText(item, targetLang, sourceLang);
+              return {
+                text: item,
+                translatedText: result.translatedText,
+                originalText: result.originalText,
+                from: result.from,
+                to: result.to,
+                fromCache: result.fromCache || false,
+                success: true
+              };
+            } catch (error) {
+              console.error(`Error translating text: ${item}`, error);
+              return {
+                text: item,
+                error: 'Failed to translate',
+                success: false
+              };
+            }
+          })
+        );
+        return formatResponse(200, { translations: results });
+      }
+      
+      // Se for uma única string
+      try {
+        const result = await translateText(text, targetLang, sourceLang);
+        return formatResponse(200, {
+          translatedText: result.translatedText,
+          originalText: result.originalText,
+          from: result.from,
+          to: result.to,
+          fromCache: result.fromCache || false
+        });
+      } catch (error) {
+        console.error('Translation error:', error);
+        return formatResponse(500, null, 'Failed to translate text');
+      }
+    } catch (error) {
+      console.error('Translation error:', error);
+      return formatResponse(500, null, 'Failed to translate text');
+    }
+  }
 
   try {
     
