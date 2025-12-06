@@ -125,6 +125,8 @@ export interface User {
   isFollowed?: boolean;
   isOnline?: boolean;
   lastSeen?: string;
+  lastConnected?: string;
+  connectedClients?: string[];
   withdrawal_method?: {
     method: string;
     details: any;

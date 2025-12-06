@@ -664,7 +664,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         }
     };
 
-    const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
+    const handleSendMessage = async (e: React.MouseEvent | React.KeyboardEvent) => {
         e.preventDefault();
         if (!chatInput.trim()) return;
         
@@ -683,19 +683,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             fullUser: currentUser
         };
 
-        // Envia a mensagem via WebSocket
-        webSocketManager.emit('sendStreamMessage', {
-            roomId: streamer.id,
-            message: chatInput,
-            user: currentUser.name,
-            level: currentUser.level,
-            avatar: currentUser.avatarUrl,
-            gender: currentUser.gender,
-            age: currentUser.age,
-            activeFrameId: currentUser.activeFrameId,
-            frameExpiration: currentUser.frameExpiration,
-            fanClub: currentUser.fanClub,
-        });
+        try {
+            await api.sendStreamMessage(streamer.id, currentUser.id, chatInput);
+        } catch (error) {
+            console.error('Falha ao enviar mensagem da live via API:', error);
+        }
 
         // Adiciona a mensagem ao chat localmente
         setMessages(prev => [...prev, message]);

@@ -2,22 +2,88 @@ import { mockApiRouter } from './server';
 import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, PurchaseRecord, Visitor, EligibleUser, FeedPhoto, LiveSessionState, LevelInfo, GoogleAccount, StreamHistoryEntry, Comment, MusicTrack, Wallet } from '../types';
 import { delay, CURRENT_USER_ID } from './database';
 
-const callApi = async <T>(method: string, path: string, body?: any): Promise<T> => {
-    await delay(Math.random() * 150 + 50); // Simulate network latency
-    try {
-        const response = await mockApiRouter(method, path, body);
-        if (response.status >= 400) {
-            throw new Error(response.error || `API Error: ${response.status}`);
-        }
-        return response.data as T;
-    } catch (error) {
-        console.error('API call failed:', error);
-        throw error;
+// Configuração da API
+const USE_MOCK = String(import.meta.env.VITE_USE_MOCK || 'false') === 'true';
+const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || 'http://localhost:5173');
+
+// Armazenamento do token de autenticação
+let authToken: string | null = localStorage.getItem('authToken') || null;
+
+// Função para atualizar o token
+const updateAuthToken = (token: string | null) => {
+  authToken = token;
+  if (token) {
+    localStorage.setItem('authToken', token);
+  } else {
+    localStorage.removeItem('authToken');
+  }
+};
+
+const callMockApi = async <T>(method: string, path: string, body?: any): Promise<T> => {
+    await delay(Math.random() * 150 + 50);
+    const response = await mockApiRouter(method, path, body);
+    if (response.status >= 400) {
+        throw new Error(response.error || `API Error: ${response.status}`);
     }
+    return response.data as T;
+};
+
+const callRealApi = async <T>(method: string, path: string, body?: any): Promise<T> => {
+    let url = `${API_BASE_URL}${path}`;
+    const headers: Record<string, string> = { 
+      'Content-Type': 'application/json',
+      ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+    };
+    const isGet = method.toUpperCase() === 'GET';
+    if (isGet && body && typeof body === 'object') {
+        const params = new URLSearchParams();
+        Object.entries(body).forEach(([k, v]) => {
+            if (v !== undefined && v !== null) params.append(k, String(v));
+        });
+        const sep = url.includes('?') ? '&' : '?';
+        url = `${url}${params.toString() ? sep + params.toString() : ''}`;
+    }
+    const res = await fetch(url, {
+        method,
+        headers,
+        body: !isGet && body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const text = await res.text();
+    let json: any = null;
+    try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+    if (!res.ok) {
+        const message = (json && (json.error || json.message)) || res.statusText;
+        throw new Error(message || 'API Error');
+    }
+    if (json && typeof json === 'object' && 'status' in json && ('data' in json || 'error' in json)) {
+        if (json.error) throw new Error(json.error);
+        return json.data as T;
+    }
+    return json as T;
+};
+
+const callApi = async <T>(method: string, path: string, body?: any): Promise<T> => {
+  try {
+    return await (USE_MOCK 
+      ? callMockApi<T>(method, path, body) 
+      : callRealApi<T>(method, path, body));
+  } catch (error) {
+    console.error(`API Error [${method} ${path}]:`, error);
+    throw error;
+  }
+};
+
+// Adiciona função para definir o token de autenticação
+const setAuthToken = (token: string | null) => {
+  updateAuthToken(token);
 };
 
 // This is the client-side API object that components will import and use.
 export const api = {
+  // Auth token management
+  setAuthToken,
+  clearAuthToken: () => setAuthToken(null),
+  getAuthToken: () => authToken,
     // --- Translation ---
     translate: (text: string, targetLang: string) => callApi<{ translatedText: string }>('POST', '/api/translate', { text, targetLang }),
 
@@ -27,6 +93,9 @@ export const api = {
     disconnectGoogleAccount: (email: string) => callApi<{ success: boolean }>('POST', '/api/accounts/google/disconnect', { email }),
     
     // --- Users ---
+    updateUserStatus: (userId: string, isOnline: boolean) => callApi<{ success: boolean, user: User }>('POST', '/api/user/statusChanged', { userId, isOnline }),
+    registerUserConnection: (userId: string) => callApi<{ success: boolean }>('POST', '/api/user/connected', { userId }),
+    registerClientConnection: (userId: string, clientId: string) => callApi<{ success: boolean, connectedClients: string[] }>('POST', '/api/user/clientConnected', { userId, clientId }),
     getCurrentUser: () => callApi<User>('GET', '/api/users/me'),
     getAllUsers: () => callApi<User[]>('GET', '/api/users'),
     getUser: (userId: string) => callApi<User>('GET', `/api/users/${userId}`),
@@ -94,6 +163,7 @@ export const api = {
     getStreamManual: () => callApi<any[]>('GET', '/api/streams/manual'),
     getBeautyEffects: () => callApi<{ filters: { name: string; icon?: string; img?: string; }[]; effects: { name: string; icon?: string; }[] }>('GET', '/api/streams/effects'),
     getOnlineUsers: (streamId: string) => callApi<(User & { value: number })[]>('GET', `/api/streams/${streamId}/online-users`),
+    getStreamGifts: (streamId: string) => callApi<Array<{ fromUser: User; gift: Gift; quantity: number; timestamp: number }>>('GET', `/api/streams/${streamId}/gifts`),
     refreshOnlineUsers: (streamId: string) => callApi<{ success: boolean }>('POST', `/api/streams/${streamId}/refresh-online-users`),
     endLiveSession: (streamId: string, sessionData: LiveSessionState) => callApi<{ success: boolean, user: User }>('POST', `/api/streams/${streamId}/end-session`, { session: sessionData }),
     getReceivedGifts: (userId: string) => callApi<(Gift & { count: number })[]>('GET', `/api/users/${userId}/received-gifts`),
@@ -136,6 +206,7 @@ export const api = {
     // --- Chat ---
     getChatMessages: (otherUserId: string) => callApi<Message[]>('GET', `/api/chats/${otherUserId}/messages`),
     sendChatMessage: (from: string, to: string, text: string, imageUrl?: string, tempId?: string) => callApi<Message>('POST', `/api/chats/${to}/messages`, { fromUserId: from, text, imageUrl, tempId }),
+    sendStreamMessage: (streamId: string, fromUserId: string, text: string) => callApi<{ success: boolean }>('POST', `/api/streams/${streamId}/messages`, { fromUserId, text }),
     markMessagesAsRead: (messageIds: string[], otherUserId: string) => callApi<{ success: boolean }>('POST', `/api/chats/${otherUserId}/mark-read`, { messageIds }),
 
     // --- Permissions & Privacy ---

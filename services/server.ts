@@ -3,6 +3,8 @@ import { db, CURRENT_USER_ID, createChatKey, saveDb, levelProgression, avatarFra
 import { User, Streamer, Message, ChatMessage, RankedUser, Gift, Conversation, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, NotificationSettings, BeautySettings, LevelInfo, Comment, MusicTrack, Wallet } from '../types';
 import { webSocketServerInstance } from './websocket';
 
+
+
 /**
  * Formata a resposta da API para garantir que sempre retorne JSON
  * @param status Código HTTP da resposta
@@ -128,7 +130,7 @@ interface PKBattleState {
 // Main router function
 export const mockApiRouter = async (method: string, path: string, body?: any): Promise<ApiResponse> => {
   console.log(`[API MOCK] ${method} ${path}`, body ? 'with body' : '');
-  const url = new URL(path, 'http://localhost:3000'); // Base URL doesn't matter, just for parsing
+  const url = new URL(path, 'http://localhost:5173'); // Base URL doesn't matter, just for parsing
   const pathParts = url.pathname.split('/').filter(p => p);
   const entity = pathParts[1];
   const id = pathParts[2];
@@ -1120,6 +1122,43 @@ export const mockApiRouter = async (method: string, path: string, body?: any): P
 
                 return { status: 200, data: usersWithValue };
             }
+            if (subEntity === 'messages' && method === 'POST') {
+                const streamId = id;
+                const { fromUserId, text } = body || {};
+                if (!fromUserId || typeof text !== 'string' || !text.trim()) {
+                    return { status: 400, error: 'Parâmetros inválidos para mensagem de live.' };
+                }
+
+                const fromUser = db.users.get(fromUserId);
+                if (!fromUser) return { status: 404, error: 'Usuário remetente não encontrado.' };
+
+                const room = db.streamRooms.get(streamId);
+                if (!room) return { status: 404, error: 'Sala de transmissão não encontrada.' };
+
+                const isHost = stream.hostId === fromUserId;
+                const isModerator = db.moderators.get(streamId)?.has(fromUserId) || false;
+                const messagePayload = {
+                    id: Date.now(),
+                    type: 'chat',
+                    user: fromUser.name,
+                    level: fromUser.level,
+                    message: text,
+                    avatar: fromUser.avatarUrl,
+                    gender: fromUser.gender,
+                    age: fromUser.age,
+                    isModerator: isHost || isModerator,
+                };
+
+                room.forEach(userIdInRoom => {
+                    const userSocket = webSocketServerInstance['connections'].get(userIdInRoom);
+                    userSocket?.onMessage({
+                        type: 'newStreamMessage',
+                        payload: { ...messagePayload, roomId: streamId }
+                    });
+                });
+
+                return { status: 201, data: { success: true } };
+            }
             if (subEntity === 'refresh-online-users' && method === 'POST') {
                 const streamId = id;
                 const roomUserIds = db.streamRooms.get(streamId);
@@ -1969,6 +2008,58 @@ export const mockApiRouter = async (method: string, path: string, body?: any): P
         });
         
         return { status: 200, data: { success: true, user } };
+    }
+
+    if (entity === 'user') {
+        if (id === 'statusChanged' && method === 'POST') {
+            const { userId, isOnline } = body || {};
+            const targetId = userId || CURRENT_USER_ID;
+            const user = db.users.get(targetId);
+            if (!user) {
+                return formatResponse(404, null, 'User not found');
+            }
+            user.isOnline = !!isOnline;
+            user.lastSeen = new Date().toISOString();
+            db.users.set(targetId, user);
+            saveDb();
+            return formatResponse(200, { success: true, user });
+        }
+
+        if (id === 'connected' && method === 'POST') {
+            const { userId, clientId } = body || {};
+            const targetId = userId || CURRENT_USER_ID;
+            const user = db.users.get(targetId);
+            if (!user) {
+                return formatResponse(404, null, 'User not found');
+            }
+            const now = new Date().toISOString();
+            user.lastConnected = now;
+            const clients = Array.isArray(user.connectedClients) ? user.connectedClients : [];
+            const nextClients = clientId ? [clientId, ...clients.filter((id: string) => id !== clientId)] : clients;
+            user.connectedClients = nextClients.slice(0, 20);
+            db.users.set(targetId, user);
+            db.history.actions.push({ type: 'user_connected', userId: targetId, clientId, timestamp: now });
+            saveDb();
+            return formatResponse(200, { success: true });
+        }
+
+        if (id === 'clientConnected' && method === 'POST') {
+            const { userId, clientId } = body || {};
+            const targetId = userId || CURRENT_USER_ID;
+            const user = db.users.get(targetId);
+            if (!user) {
+                return formatResponse(404, null, 'User not found');
+            }
+            const now = new Date().toISOString();
+            user.lastConnected = now;
+            const clients = Array.isArray(user.connectedClients) ? user.connectedClients : [];
+            const nextClients = clientId ? [clientId, ...clients.filter((id: string) => id !== clientId)] : clients;
+            user.connectedClients = nextClients.slice(0, 20);
+            db.users.set(targetId, user);
+            db.history.actions.push({ type: 'client_connected', userId: targetId, clientId, timestamp: now });
+            saveDb();
+            return formatResponse(200, { success: true, connectedClients: user.connectedClients });
+        }
     }
     
     // Settings APIs

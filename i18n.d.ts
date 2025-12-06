@@ -5,13 +5,15 @@ type Translations = {
 };
 
 interface TranslationContextType {
-  t: (key: string) => string;
+  t: (key: string, options?: Record<string, unknown>) => string;
   language: string;
   setLanguage: (lang: string) => void;
+  i18n: any;
+  ready: boolean;
 }
 
 declare const useTranslation: () => TranslationContextType;
-declare const t: (key: string) => string;
+declare const t: (key: string, options?: Record<string, unknown>) => string;
 declare const setLanguage: (lang: string) => void;
 declare const getCurrentLanguage: () => string;
 

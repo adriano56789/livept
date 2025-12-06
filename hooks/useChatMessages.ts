@@ -1,6 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-
-// Tipos exportados do worker
 import type { TranslationMessage } from '../workers/translation.worker';
 
 type Message = {
@@ -27,16 +25,7 @@ export const useChatMessages = (initialMessages: Message[] = []) => {
   // Inicializa o worker
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    // Cria uma instância do worker usando Blob URL para evitar problemas de CORS
-    const workerBlob = new Blob([
-      'importScripts("https://unpkg.com/comlink/dist/umd/comlink.js");',
-      'const worker = ' + createWorkerString() + ';',
-      'Comlink.expose(worker);'
-    ], { type: 'application/javascript' });
-    
-    const workerUrl = URL.createObjectURL(workerBlob);
-    const worker = new Worker(workerUrl);
+    const worker = new Worker(new URL('../workers/translation.worker.ts', import.meta.url), { type: 'module' });
     
     worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
       const { type, data, error } = e.data as any;
@@ -82,11 +71,8 @@ export const useChatMessages = (initialMessages: Message[] = []) => {
     
     workerRef.current = worker;
     setIsWorkerReady(true);
-    
-    // Limpeza
     return () => {
       worker.terminate();
-      URL.revokeObjectURL(workerUrl);
     };
   }, []);
 
@@ -99,14 +85,7 @@ export const useChatMessages = (initialMessages: Message[] = []) => {
     isProcessing.current = true;
     const batch = messageQueue.current.splice(0, 10); // Processa em lotes menores
     
-    // Envia mensagem para o worker
-    workerRef.current.postMessage({
-      type: 'TRANSLATE',
-      payload: {
-        messages: batch,
-        language: 'pt' // Idioma alvo para tradução
-      }
-    });
+    workerRef.current.postMessage({ type: 'TRANSLATE', payload: { messages: batch, language: 'pt' } });
     
     // Processa o próximo lote após um pequeno delay
     if (messageQueue.current.length > 0) {
@@ -140,94 +119,5 @@ export const useChatMessages = (initialMessages: Message[] = []) => {
     clearMessages,
   };
 };
-
-// Função auxiliar para criar o worker como string
-function createWorkerString(): string {
-  return `
-    // Código do worker inline
-    ${self.onmessage.toString()}
-    ${translateText.toString()}
-    ${processTranslationBatch.toString()}
-    
-    // Inicialização do worker
-    self.onmessage = async function(e) {
-      const { type, payload } = e.data;
-      
-      if (type === 'TRANSLATE') {
-        try {
-          const { messages, language } = payload;
-          const results = await processTranslationBatch(messages, language);
-          
-          // Envia o resultado final
-          self.postMessage({
-            type: 'TRANSLATION_COMPLETE',
-            data: results,
-          });
-        } catch (error) {
-          self.postMessage({
-            type: 'TRANSLATION_ERROR',
-            error: error instanceof Error ? error.message : 'Erro desconhecido',
-          });
-        }
-      }
-    };
-  `;
-}
-
-// Funções do worker
-async function translateText(text: string, targetLang: string): Promise<string> {
-  try {
-    const response = await fetch('/api/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, targetLang }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Erro na tradução');
-    }
-
-    const data = await response.json();
-    return data.translatedText;
-  } catch (error) {
-    console.error('Erro ao traduzir texto:', error);
-    throw error;
-  }
-}
-
-async function processTranslationBatch(messages: TranslationMessage[], language: string): Promise<TranslationMessage[]> {
-  const batchSize = 5;
-  const results: TranslationMessage[] = [];
-  
-  for (let i = 0; i < messages.length; i += batchSize) {
-    const batch = messages.slice(i, i + batchSize);
-    const batchPromises = batch.map(async (msg) => {
-      try {
-        if (typeof msg.message === 'string') {
-          const translatedText = await translateText(msg.message, language);
-          return {
-            ...msg,
-            translatedText
-          };
-        }
-        return msg;
-      } catch (error) {
-        console.error('Erro ao processar mensagem:', error);
-        return msg;
-      }
-    });
-
-    const batchResults = await Promise.all(batchPromises);
-    results.push(...batchResults);
-    
-    // Envia atualizações parciais
-    self.postMessage({
-      type: 'PARTIAL_RESULT',
-      data: batchResults,
-    });
-  }
-  
-  return results;
-}
 
 export default useChatMessages;

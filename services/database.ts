@@ -701,6 +701,7 @@ const constructInitialDb = () => {
         userConnectedAccounts,
         quickCompleteFriends: new Map([[CURRENT_USER_ID, quickCompleteFriendsData]]),
         wallets: new Map<string, Wallet>(),
+        clientConnections: new Map<string, any[]>(),
         translationCache: [] as TranslationCache[],
     };
 };

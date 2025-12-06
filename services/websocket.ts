@@ -1,6 +1,7 @@
 
 import * as database from './database';
 import { Message, User, Gift, Streamer, EligibleUser, PurchaseRecord } from '../types';
+import { api } from './api';
 
 // Safe database accessor function
 const getDatabase = () => {
@@ -268,7 +269,7 @@ class SimulatedWebSocketServer {
         });
     }
 
-    public broadcastUserUpdate(updatedUser: User) {
+    public async broadcastUserUpdate(updatedUser: User) {
         console.log(`[WS Server] Broadcasting user update for ${updatedUser.name} (${updatedUser.id}).`);
         const payload = { user: updatedUser };
         this.connections.forEach((_client, userId) => {
@@ -322,9 +323,7 @@ class SimulatedWebSocketServer {
             case 'sendStreamMessage':
                 this.handleSendStreamMessage(fromUserId, payload.roomId, payload.text);
                 break;
-            case 'sendStreamGift':
-                this.handleSendStreamGift(fromUserId, payload.roomId, payload.gift, payload.quantity);
-                break;
+            // Gift handling has been moved to the API
             case 'kickUser':
                 this.handleKickUser(fromUserId, payload.userId, payload.roomId);
                 break;
@@ -476,58 +475,7 @@ class SimulatedWebSocketServer {
         });
     }
 
-    public handleSendStreamGift(fromUserId: string, roomId: string, gift: Gift, quantity: number) {
-        const fromUser = database.db.users.get(fromUserId);
-        const stream = database.db.streamers.find(s => s.id === roomId);
-        const toUser = stream ? database.db.users.get(stream.hostId) : null;
-
-        if (!fromUser || !toUser) {
-            console.error(`[WS Server] Could not find fromUser ${fromUserId} or toUser for room ${roomId}`);
-            return;
-        }
-
-        const room = database.db.streamRooms.get(roomId);
-        if (!room) {
-            console.error(`[WS Server] User ${fromUserId} could not send gift. Room ${roomId} not found.`);
-            return;
-        }
-
-        // Apenas notifica sobre o presente, sem processar lógica de negócios
-        const giftNotification = {
-            fromUser: {
-                id: fromUser.id,
-                name: fromUser.name,
-                avatar: fromUser.avatarUrl,
-                level: fromUser.level
-            },
-            toUser: {
-                id: toUser.id,
-                name: toUser.name
-            },
-            gift: {
-                id: gift.id,
-                name: gift.name,
-                icon: gift.icon,
-                price: gift.price
-            },
-            quantity,
-            roomId,
-            timestamp: new Date().toISOString()
-        };
-
-        console.log(`[WS Server] Notifying about gift in room ${roomId}:`, giftNotification);
-
-        // Envia notificação para todos na sala
-        room.forEach(userIdInRoom => {
-            const userSocket = this.connections.get(userIdInRoom);
-            if (userSocket) {
-                userSocket.onMessage({
-                    type: 'giftNotification',
-                    payload: giftNotification
-                });
-            }
-        });
-    }
+    // Gift handling has been moved to the API
 
     private handleSendMessage(from: string, to: string, text: string, tempId?: string) {
         const chatKey = database.createChatKey(from, to);
@@ -629,19 +577,14 @@ class WebSocketManager extends EventEmitter {
     }
 
     async sendStreamGift(roomId: string, gift: Gift, quantity: number): Promise<boolean> {
-        if (!this.isConnected || !this.userId) return false;
+        if (!this.userId) return false;
         
         try {
-            // Presente na tela → WebSocket (notificação em tempo real)
-            // Presente no chat/mensagem → API/back-end (lógica de negócio)
-            webSocketServerInstance.handleMessage(this.userId, { 
-                type: 'sendStreamGift', 
-                payload: { roomId, gift, quantity } 
-            });
+            // Usa o serviço de API para enviar o presente
+            await api.sendGift(this.userId, roomId, gift.id, quantity);
             return true;
-            
         } catch (error) { 
-            console.error('Erro ao notificar envio de presente:', error instanceof Error ? error.message : 'Erro desconhecido');
+            console.error('Erro ao enviar presente:', error instanceof Error ? error.message : 'Erro desconhecido');
             return false;
         }
     }

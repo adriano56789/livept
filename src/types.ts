@@ -96,6 +96,8 @@ export interface User {
   isFollowed?: boolean;
   isOnline?: boolean;
   lastSeen?: string;
+  lastConnected?: string;
+  connectedClients?: string[];
   diamonds: number;
   earnings: number;
   earnings_withdrawn: number;
