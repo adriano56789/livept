@@ -2494,9 +2494,12 @@ export const mockApiRouter = async (method: string, path: string, body?: any): P
 
     // --- Lembretes ---
     if (entity === 'reminders' && method === 'GET') {
-        // Simula streamers para lembretes
-        const reminderStreamers = Array.from(db.users.values())
-            .filter(user => user.isLive)
+        // Retorna streamers ativos (consistentes com o tipo Streamer)
+        const reminderStreamers = db.streamers
+            .filter(s => {
+                const host = db.users.get(s.hostId);
+                return host?.isLive;
+            })
             .slice(0, 10);
         return formatResponse(200, reminderStreamers);
     }

@@ -91,7 +91,7 @@ const ReminderModal: React.FC<ReminderModalProps> = ({ isOpen, onClose, onSelect
                 <span className="text-gray-300 bg-gray-700/50 px-3 py-1 rounded-full text-sm">{t('reminder.nearby')}</span>
             </div>
             <div className="flex-grow overflow-y-auto relative no-scrollbar">
-                {streamers.map(streamer => (
+                {(Array.isArray(streamers) ? streamers : []).map(streamer => (
                     <StreamerItem 
                         key={streamer.id} 
                         streamer={streamer} 
