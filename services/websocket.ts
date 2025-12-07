@@ -16,7 +16,7 @@ const getDatabase = () => {
 const ensureMapsInitialized = () => {
     const db = getDatabase();
     if (!db) return;
-    
+
     if (!db.kickedUsers) {
         db.kickedUsers = new Map<string, Set<string>>();
     }
@@ -29,7 +29,7 @@ const ensureMapsInitialized = () => {
 let mapsInitialized = false;
 const initializeMapsIfNeeded = () => {
     if (mapsInitialized) return;
-    
+
     const db = getDatabase();
     if (db) {
         ensureMapsInitialized();
@@ -49,7 +49,11 @@ class EventEmitter {
         if (!this.events.has(event)) {
             this.events.set(event, []);
         }
-        this.events.get(event)!.push(listener);
+        // Prevent duplicate listeners
+        const listeners = this.events.get(event)!;
+        if (!listeners.includes(listener)) {
+            listeners.push(listener);
+        }
     }
 
     off(event: string, listener: Function) {
@@ -69,6 +73,7 @@ class EventEmitter {
 // --- Simulated WebSocket Server ---
 class SimulatedWebSocketServer {
     private connections = new Map<string, { onMessage: (data: any) => void }>();
+    private lastBroadcast = new Map<string, number>(); // Track last broadcast time per user
 
     connect(userId: string, client: { onMessage: (data: any) => void }) {
         console.log(`[WS Server] User connected: ${userId}`);
@@ -270,6 +275,17 @@ class SimulatedWebSocketServer {
     }
 
     public async broadcastUserUpdate(updatedUser: User) {
+        const now = Date.now();
+        const lastTime = this.lastBroadcast.get(updatedUser.id) || 0;
+
+        // Throttle updates to prevent double broadcasting (500ms window)
+        if (now - lastTime < 500) {
+            console.log(`[WS Server] Skipping duplicate broadcast for ${updatedUser.name} (${updatedUser.id}).`);
+            return;
+        }
+
+        this.lastBroadcast.set(updatedUser.id, now);
+
         console.log(`[WS Server] Broadcasting user update for ${updatedUser.name} (${updatedUser.id}).`);
         const payload = { user: updatedUser };
         this.connections.forEach((_client, userId) => {
@@ -576,17 +592,53 @@ class WebSocketManager extends EventEmitter {
         webSocketServerInstance.handleMessage(this.userId, { type: 'sendStreamMessage', payload: { roomId, text } });
     }
 
+    private giftQueue: Array<() => Promise<boolean>> = [];
+    private isProcessingGift = false;
+
+    private async processGiftQueue() {
+        if (this.isProcessingGift || this.giftQueue.length === 0) return;
+
+        this.isProcessingGift = true;
+        const giftTask = this.giftQueue.shift();
+
+        if (giftTask) {
+            try {
+                await giftTask();
+            } catch (error) {
+                console.error('Erro ao processar presente na fila:', error);
+            }
+        }
+
+        this.isProcessingGift = false;
+
+        // Processa o próximo item da fila se houver
+        if (this.giftQueue.length > 0) {
+            requestAnimationFrame(() => this.processGiftQueue());
+        }
+    }
+
     async sendStreamGift(roomId: string, gift: Gift, quantity: number): Promise<boolean> {
         if (!this.userId) return false;
-        
-        try {
-            // Usa o serviço de API para enviar o presente
-            await api.sendGift(this.userId, roomId, gift.id, quantity);
-            return true;
-        } catch (error) { 
-            console.error('Erro ao enviar presente:', error instanceof Error ? error.message : 'Erro desconhecido');
-            return false;
-        }
+
+        return new Promise((resolve) => {
+            const processGift = async (): Promise<boolean> => {
+                try {
+                    await api.sendGift(this.userId!, roomId, gift.id, quantity);
+                    resolve(true);
+                    return true;
+                } catch (error) {
+                    console.error('Erro ao enviar presente:', error instanceof Error ? error.message : 'Erro desconhecido');
+                    resolve(false);
+                    return false;
+                }
+            };
+
+            this.giftQueue.push(processGift);
+
+            if (!this.isProcessingGift) {
+                requestAnimationFrame(() => this.processGiftQueue());
+            }
+        });
     }
 
     sendKickRequest(roomId: string, userId: string, byUserId: string) {

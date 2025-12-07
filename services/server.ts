@@ -3,6 +3,9 @@ import { db, CURRENT_USER_ID, createChatKey, saveDb, levelProgression, avatarFra
 import { User, Streamer, Message, ChatMessage, RankedUser, Gift, Conversation, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, NotificationSettings, BeautySettings, LevelInfo, Comment, MusicTrack, Wallet } from '../types';
 import { webSocketServerInstance } from './websocket';
 
+// Conjunto para rastrear os IDs de presentes já processados
+const processedGiftIds = new Set<string>();
+
 
 
 /**
@@ -1394,16 +1397,53 @@ export const mockApiRouter = async (method: string, path: string, body?: any): P
             }
             
             if (subEntity === 'gift' && method === 'POST') {
+                console.log('[DEBUG] Iniciando processamento de presente', { streamId: id, body });
                 const streamId = id;
                 const { fromUserId, giftName, amount } = body;
+                
+                console.log('[DEBUG] Buscando dados do remetente, stream e presente', { fromUserId, giftName });
+                
+                // Criar um ID único para este presente baseado no remetente, stream e timestamp
+                const giftId = `${fromUserId}-${streamId}-${giftName}-${Date.now()}`;
+                
+                // Verificar se já processamos este presente
+                if (processedGiftIds.has(giftId)) {
+                    console.log('[DEBUG] Presente já processado, ignorando duplicata', { giftId });
+                    return { status: 200, data: { success: true, alreadyProcessed: true } };
+                }
+                
+                // Adicionar à lista de processados
+                processedGiftIds.add(giftId);
+                console.log('[DEBUG] Processando novo presente', { giftId });
+                
                 const sender = db.users.get(fromUserId);
                 const stream = db.streamers.find(s => s.id === streamId);
                 const gift = db.gifts.find(g => g.name === giftName);
                 
-                if (!sender || !stream || !gift) return { status: 404, error: 'Sender, stream, or gift not found.' };
+                console.log('[DEBUG] Dados encontrados', { 
+                    senderExists: !!sender, 
+                    streamExists: !!stream, 
+                    giftExists: !!gift,
+                    senderName: sender?.name,
+                    streamName: stream?.name,
+                    giftName: gift?.name
+                });
                 
+                if (!sender || !stream || !gift) {
+                    console.error('[ERROR] Dados não encontrados', { 
+                        senderExists: !!sender, 
+                        streamExists: !!stream, 
+                        giftExists: !!gift 
+                    });
+                    return { status: 404, error: 'Sender, stream, or gift not found.' };
+                }
+                
+                console.log('[DEBUG] Buscando dados do destinatário', { hostId: stream.hostId });
                 const receiver = db.users.get(stream.hostId);
-                if (!receiver) return { status: 404, error: 'Receiver not found.' };
+                if (!receiver) {
+                    console.error('[ERROR] Destinatário não encontrado', { hostId: stream.hostId });
+                    return { status: 404, error: 'Receiver not found.' };
+                }
                 
                 // Garantir que o preço e a quantidade sejam números inteiros
                 const giftPrice = Math.floor(gift.price || 0);
@@ -1471,6 +1511,15 @@ export const mockApiRouter = async (method: string, path: string, body?: any): P
                 // 5. Update session contribution stats
                 const session = db.liveSessions.get(streamId);
                 if (session) {
+                    // Limpar IDs antigos para evitar vazamento de memória
+                    // Mantemos apenas os IDs dos últimos 5 minutos
+                    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+                    for (const [id] of processedGiftIds.entries()) {
+                        const timestamp = parseInt(id.split('-').pop() || '0', 10);
+                        if (timestamp < fiveMinutesAgo) {
+                            processedGiftIds.delete(id);
+                        }
+                    }
                     if (!session.giftSenders) session.giftSenders = new Map();
                     
                     // Obter ou criar dados do remetente
@@ -1519,6 +1568,21 @@ export const mockApiRouter = async (method: string, path: string, body?: any): P
                 webSocketServerInstance.broadcastRoomUpdate(streamId);
                 
                 // 8. Return success (frontend will handle chat message creation)
+                const giftEventPayload = {
+                    roomId: streamId,
+                    fromUser: updatedSender,
+                    toUser: { id: updatedReceiver.id, name: updatedReceiver.name },
+                    gift,
+                    quantity: giftAmount,
+                    status: 'success'
+                };
+
+                // Notificar todos os clientes na sala sobre o novo presente
+                webSocketServerInstance.broadcast('newStreamGift', giftEventPayload);
+                
+                // Log para depuração
+                console.log(`[GIFT] Notificação de presente enviada para a sala ${streamId}`, giftEventPayload);
+
                 return { status: 200, data: { success: true, updatedSender, updatedReceiver } };
             } // Fecha o bloco if (subEntity === 'gift' && method === 'POST')
         } // Fecha o bloco if (id)

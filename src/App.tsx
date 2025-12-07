@@ -718,13 +718,12 @@ const handleDenyLocation = async () => {
             }
         }
 
-        const [gifts, receivedGifts] = await Promise.all([
-            api.getGifts(),
-            api.getReceivedGifts(streamer.hostId),
-        ]);
-        setStreamRoomData({ gifts: gifts || [], receivedGifts: receivedGifts || [] });
+        const gifts = await api.getGifts();
+        setStreamRoomData({ gifts: gifts || [], receivedGifts: [] });
         startLiveSession(streamer);
         webSocketManager.joinStreamRoom(streamer.id);
+        // Atualiza os dados completos da sala, incluindo receivedGifts
+        await refreshStreamRoomData(streamer.hostId);
     } catch (error) {
         addToast(ToastType.Error, "Falha ao carregar dados da live.");
     } finally {
