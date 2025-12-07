@@ -246,9 +246,8 @@ export const api = {
     saveData: (entity: string, data: any) => callApi<{ success: boolean, id?: string }>('POST', `/api/data/${entity}`, data),
     getData: (entity: string, filters?: any) => callApi<any[]>('GET', `/api/data/${entity}`, filters),
     updateData: (entity: string, id: string, data: any) => callApi<{ success: boolean }>('PUT', `/api/data/${entity}/${id}`, data),
-    deleteData: (entity: string, id: string) => callApi<{ success: boolean }>('DELETE', `/api/data/${entity}/${id}`),
+    deleteData(entity: string, id: string) {
+    return callApi('DELETE', `/${entity}/${id}`);
+  },
+  
 };
-export function sendGift(userId: string, roomId: string, id: string, quantity: number) {
-    return callApi<{ success: boolean; error?: string; updatedSender: User; updatedReceiver: User; }>('POST', `/api/streams/${roomId}/gift`, { fromUserId: userId, giftName: id, amount: quantity });
-}
-

@@ -125,26 +125,22 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
 
     const handleNewGift = useCallback((giftData: GiftPayload) => {
+        if (giftData.roomId !== streamer.id || giftData.fromUser.id === currentUser.id) {
+            return; // Ignore gifts for other rooms or self-sent gifts (already handled optimistically)
+        }
+
+        // WebSocket já recebeu a notificação do backend, apenas atualiza UI
+        // Não precisa chamar refreshStreamRoomData - o backend já persistiu e notificou via WebSocket
+        postGiftChatMessage(giftData);
+
         const giftId = Date.now();
-        // Garante que o giftWithId tenha um id obrigatório
         const giftWithId = { ...giftData, id: giftId } as GiftPayload & { id: number };
-        
-        // ID único para a animação
         const id = `gift-${giftId}`;
-        // Sempre permitir que a animação comece
         const ref = { canStart: true };
-        
-        // Armazena a referência da animação
         animationRefs.current[id] = ref;
-        
-        // Sempre substitui a notificação anterior pela nova
         setActiveGiftAnimations(prev => [giftWithId]);
-        
-        // Retorna função de limpeza
-        return () => {
-            delete animationRefs.current[id];
-        };
-    }, []);
+        return () => { delete animationRefs.current[id]; };
+    }, [streamer.id]);
 
     const isBroadcaster = streamer.hostId === currentUser.id;
 
@@ -557,8 +553,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                     const coinsAdded = (gift.price || 0) * quantity;
                     updateLiveSession({ coins: (liveSession.coins || 0) + coinsAdded });
                 }
-                
-                refreshStreamRoomData(streamer.hostId);
+
+                // Não precisa chamar refreshStreamRoomData - o backend já persistiu e vai disparar WebSocket
+                // O WebSocket vai atualizar os dados quando necessário
 
                 const wasNotFan = !currentUser.fanClub || currentUser.fanClub.streamerId !== streamer.hostId;
                 const isNowFan = updatedSender.fanClub && updatedSender.fanClub.streamerId === streamer.hostId;

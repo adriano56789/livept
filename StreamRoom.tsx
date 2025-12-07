@@ -293,8 +293,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             if (liveSession) {
                 updateLiveSession({ coins: (liveSession.coins || 0) + (payload.gift.price || 0) * payload.quantity });
             }
-            
-            refreshStreamRoomData(streamer.hostId);
+
+            // WebSocket já recebeu a notificação do backend, apenas atualiza UI
+            // Não precisa chamar refreshStreamRoomData - o backend já persistiu e notificou via WebSocket
             postGiftChatMessage(payload);
             setFullscreenGiftQueue(prev => [...prev, payload]);
         };
@@ -539,7 +540,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     
             if (success && updatedSender) {
                 updateUser(updatedSender);
-    
+
                 if (gift.triggersAutoFollow && !isFollowed) {
                     onFollowUser(streamerUser, streamer.id);
                 }
@@ -548,8 +549,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                     const coinsAdded = (gift.price || 0) * quantity;
                     updateLiveSession({ coins: (liveSession.coins || 0) + coinsAdded });
                 }
-                
-                refreshStreamRoomData(streamer.hostId);
+
+                // Não precisa chamar refreshStreamRoomData - o backend já persistiu e vai disparar WebSocket
+                // O WebSocket vai atualizar os dados quando necessário
 
                 const wasNotFan = !currentUser.fanClub || currentUser.fanClub.streamerId !== streamer.hostId;
                 const isNowFan = updatedSender.fanClub && updatedSender.fanClub.streamerId === streamer.hostId;
