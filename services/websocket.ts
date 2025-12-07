@@ -623,7 +623,7 @@ class WebSocketManager extends EventEmitter {
         return new Promise((resolve) => {
             const processGift = async (): Promise<boolean> => {
                 try {
-                    await api.sendGift(this.userId!, roomId, gift.id, quantity);
+                    await api.sendGift(this.userId!, roomId, gift.name, quantity);
                     resolve(true);
                     return true;
                 } catch (error) {

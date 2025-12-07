@@ -163,7 +163,6 @@ export const api = {
     getStreamManual: () => callApi<any[]>('GET', '/api/streams/manual'),
     getBeautyEffects: () => callApi<{ filters: { name: string; icon?: string; img?: string; }[]; effects: { name: string; icon?: string; }[] }>('GET', '/api/streams/effects'),
     getOnlineUsers: (streamId: string) => callApi<(User & { value: number })[]>('GET', `/api/streams/${streamId}/online-users`),
-    getStreamGifts: (streamId: string) => callApi<Array<{ fromUser: User; gift: Gift; quantity: number; timestamp: number }>>('GET', `/api/streams/${streamId}/gifts`),
     refreshOnlineUsers: (streamId: string) => callApi<{ success: boolean }>('POST', `/api/streams/${streamId}/refresh-online-users`),
     endLiveSession: (streamId: string, sessionData: LiveSessionState) => callApi<{ success: boolean, user: User }>('POST', `/api/streams/${streamId}/end-session`, { session: sessionData }),
     getReceivedGifts: (userId: string) => callApi<(Gift & { count: number })[]>('GET', `/api/users/${userId}/received-gifts`),
